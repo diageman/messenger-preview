@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD600"/>
+      <stop offset="100%" style="stop-color:#FFC107"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="#0A0A0B"/>
+  <!-- Taxi silhouette -->
+  <rect x="20" y="45" width="60" height="25" rx="4" fill="url(#gradient)"/>
+  <rect x="28" y="35" width="44" height="15" rx="3" fill="url(#gradient)"/>
+  <!-- Wheels -->
+  <circle cx="30" cy="70" r="6" fill="#1A1A1D"/>
+  <circle cx="70" cy="70" r="6" fill="#1A1A1D"/>
+  <!-- Windows -->
+  <rect x="32" y="38" width="14" height="9" rx="1" fill="#1A1A1D"/>
+  <rect x="54" y="38" width="14" height="9" rx="1" fill="#1A1A1D"/>
+  <!-- Headlight -->
+  <rect x="76" y="50" width="4" height="6" rx="1" fill="#FFECB3"/>
+</svg>

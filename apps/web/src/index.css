@@ -1,0 +1,242 @@
+@import 'tailwindcss';
+
+/* ===== TELEGRAM-INSPIRED BLUE-GRAY DARK PALETTE ===== */
+@theme inline {
+  /* Backgrounds (спокойные сине-серые) */
+  --color-bg-app: #0E1621;
+  --color-bg-sidebar: #17212B;
+  --color-bg-panel: #1E2A35;
+  --color-bg-elevated: #223242;
+  --color-bg-hover: #28384A;
+
+  /* Message bubbles */
+  --color-bubble-incoming: #1F2C39;
+  --color-bubble-outgoing: #2B5278;
+  --color-bubble-outgoing-hover: #315A7D;
+
+  /* Text (комфортный для чтения) */
+  --color-text-primary: #E6EDF5;
+  --color-text-secondary: #98A6B5;
+  --color-text-muted: #6F7E8F;
+  --color-text-link: #64B5EF;
+
+  /* Borders (почти невидимые) */
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+
+  /* Accent (точечный янтарный) */
+  --color-accent-yellow: #E7B200;
+  --color-accent-yellow-muted: rgba(231, 178, 0, 0.1);
+
+  /* Semantic (приглушённые) */
+  --color-success: #44B78B;
+  --color-warning: #E7B200;
+  --color-error: #EF5350;
+  --color-info: #64B5EF;
+
+  /* Taxi segments (спокойные) */
+  --color-taxi-economy: #44B78B;
+  --color-taxi-comfort: #64B5EF;
+  --color-taxi-business: #AB64F9;
+  --color-taxi-premium: #E7B200;
+  --color-taxi-courier: #FF8A65;
+  --color-taxi-cargo: #90A4AE;
+
+  /* Scrollbar */
+  --color-scrollbar-thumb: #3D4C5A;
+  --color-scrollbar-thumb-hover: #4E5E6E;
+
+  /* Fonts */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Shadows (мягкие) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-default: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== BASE STYLES ===== */
+* {
+  border-color: var(--color-border-soft);
+}
+
+html {
+  background-color: var(--color-bg-app);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-bg-app);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* ===== TYPOGRAPHY ===== */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+h1 { font-size: 20px; }
+h2 { font-size: 18px; }
+h3 { font-size: 16px; }
+
+p {
+  margin: 0;
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+/* ===== SCROLLBAR (Telegram-style) ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+/* ===== SELECTION ===== */
+::selection {
+  background-color: var(--color-accent-yellow-muted);
+  color: var(--color-text-primary);
+}
+
+/* ===== FOCUS ===== */
+:focus-visible {
+  outline: 2px solid var(--color-accent-yellow);
+  outline-offset: 2px;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 50%; }
+  100% { background-position: -200% 50%; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* ===== UTILITY CLASSES ===== */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ===== RESIZABLE HANDLE ===== */
+.resize-handle {
+  width: 1px;
+  background: var(--color-border-soft);
+  cursor: col-resize;
+  transition: background 0.2s;
+}
+
+.resize-handle:hover,
+.resize-handle.resizing {
+  background: var(--color-accent-yellow);
+}
+
+/* ===== MESSAGE BUBBLES ===== */
+.bubble-incoming {
+  background-color: var(--color-bubble-incoming);
+  color: var(--color-text-primary);
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+}
+
+.bubble-outgoing {
+  background-color: var(--color-bubble-outgoing);
+  color: var(--color-text-primary);
+  border-radius: 12px;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-outgoing:hover {
+  background-color: var(--color-bubble-outgoing-hover);
+}
+
+/* ===== CHAT LIST ITEM ===== */
+.chat-item {
+  padding: 10px 12px;
+  margin: 2px 8px;
+  border-radius: 10px;
+  transition: background-color 0.15s ease;
+}
+
+.chat-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.chat-item.selected {
+  background-color: var(--color-bg-elevated);
+}
+
+/* ===== INPUT AREA ===== */
+.message-input {
+  background-color: var(--color-bg-panel);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-primary);
+  transition: border-color 0.2s;
+}
+
+.message-input:focus {
+  outline: none;
+  border-color: var(--color-accent-yellow);
+}
+
+.message-input::placeholder {
+  color: var(--color-text-muted);
+}

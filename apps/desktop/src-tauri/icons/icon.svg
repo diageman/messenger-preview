@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD600"/>
+      <stop offset="100%" style="stop-color:#FFC107"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="256" fill="#0A0A0B"/>
+  <!-- Taxi body -->
+  <rect x="180" y="520" width="664" height="280" rx="48" fill="url(#gradient)"/>
+  <!-- Taxi top -->
+  <rect x="280" y="360" width="464" height="180" rx="32" fill="url(#gradient)"/>
+  <!-- Wheels -->
+  <circle cx="320" cy="800" r="80" fill="#1A1A1D"/>
+  <circle cx="704" cy="800" r="80" fill="#1A1A1D"/>
+  <circle cx="320" cy="800" r="40" fill="#2A2A2D"/>
+  <circle cx="704" cy="800" r="40" fill="#2A2A2D"/>
+  <!-- Windows -->
+  <rect x="320" y="390" width="180" height="120" rx="16" fill="#1A1A1D"/>
+  <rect x="544" y="390" width="180" height="120" rx="16" fill="#1A1A1D"/>
+  <!-- Headlight -->
+  <rect x="820" y="580" width="60" height="80" rx="12" fill="#FFECB3"/>
+  <!-- Taillight -->
+  <rect x="144" y="580" width="40" height="60" rx="8" fill="#EF4444"/>
+</svg>

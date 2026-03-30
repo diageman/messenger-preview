@@ -1,0 +1,30 @@
+{
+  "name": "@messenger/features",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.tsx",
+    "./chat": "./src/chat/index.tsx",
+    "./shift": "./src/shift/index.tsx",
+    "./signals": "./src/signals/index.tsx",
+    "./crew": "./src/crew/index.tsx"
+  },
+  "main": "./src/index.tsx",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@messenger/ui": "workspace:*",
+    "@messenger/shared": "workspace:*",
+    "@messenger/theme": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.8",
+    "typescript": "^5.7.3"
+  }
+}

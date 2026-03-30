@@ -1,0 +1,42 @@
+{
+  "name": "@messenger/ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./button": "./src/components/button.tsx",
+    "./input": "./src/components/input.tsx",
+    "./avatar": "./src/components/avatar.tsx",
+    "./badge": "./src/components/badge.tsx",
+    "./card": "./src/components/card.tsx",
+    "./scroll-area": "./src/components/scroll-area.tsx",
+    "./separator": "./src/components/separator.tsx",
+    "./skeleton": "./src/components/skeleton.tsx",
+    "./tooltip": "./src/components/tooltip.tsx",
+    "./vehicle-animation": "./src/components/vehicle-animation.tsx"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.0.1",
+    "lucide-react": "^0.475.0",
+    "framer-motion": "^12.4.7",
+    "@radix-ui/react-scroll-area": "^1.2.2",
+    "@radix-ui/react-separator": "^1.1.1",
+    "@radix-ui/react-tooltip": "^1.1.7"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@messenger/theme": "workspace:*",
+    "@types/react": "^19.0.8",
+    "typescript": "^5.7.3"
+  }
+}

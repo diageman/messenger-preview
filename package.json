@@ -1,0 +1,28 @@
+{
+  "name": "messenger",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Корпоративный мессенджер для таксопарка",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:desktop": "pnpm --filter desktop dev",
+    "dev:mobile": "pnpm --filter mobile dev",
+    "build:web": "pnpm --filter web build",
+    "build:desktop": "pnpm --filter desktop build",
+    "build:mobile": "pnpm --filter mobile build",
+    "build": "pnpm run build:web && pnpm run build:desktop && pnpm run build:mobile",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "supabase:test": "node scripts/test-supabase.js",
+    "supabase:seed": "node scripts/seed-demo-data.js"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.100.1",
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@10.6.5",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
