@@ -23,12 +23,15 @@ export function useContacts() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
-  const fetchContacts = React.useCallback(async () => {
+  const fetchContacts = React.useCallback(async (isRefresh = false) => {
     if (!profile) return;
 
-    try {
+    // Don't set loading on refresh, keep old contacts visible
+    if (!isRefresh) {
       setLoading(true);
+    }
 
+    try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -42,7 +45,7 @@ export function useContacts() {
       console.error('Error fetching contacts:', err);
       setError(err);
     } finally {
-      setLoading(false);
+      if (!isRefresh) setLoading(false);
     }
   }, [profile]);
 

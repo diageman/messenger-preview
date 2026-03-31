@@ -129,26 +129,36 @@ export function useChats() {
         (payload) => {
           const newMessage = payload.new;
           console.log('[useChats] Message INSERT received, patching chat list');
-          
-          // Smart patch: update only the affected chat
+
+          // Smart patch: update only the affected chat with dedupe
           setChats((prevChats: any[]) => {
             if (!prevChats || prevChats.length === 0) return prevChats;
-            
+
             const chatIndex = prevChats.findIndex((c) => c.id === newMessage.chat_id);
             if (chatIndex === -1) return prevChats; // Not our chat
+
+            const existingChat = prevChats[chatIndex];
             
+            // Dedupe: check if message already exists in this chat
+            const existingMessages = existingChat.messages || [];
+            const messageExists = existingMessages.some((m: any) => m.id === newMessage.id);
+            if (messageExists) {
+              console.log('[useChats] Message already exists, skipping patch');
+              return prevChats;
+            }
+
             // Create updated chat object
             const updatedChat = {
-              ...prevChats[chatIndex],
-              messages: [...(prevChats[chatIndex].messages || []), newMessage],
+              ...existingChat,
+              messages: [...existingMessages, newMessage],
               updated_at: newMessage.created_at,
             };
-            
+
             // Move updated chat to top (recent first)
             const newChats = [...prevChats];
             newChats.splice(chatIndex, 1);
             newChats.unshift(updatedChat);
-            
+
             console.log('[useChats] Chat list patched');
             return newChats;
           });

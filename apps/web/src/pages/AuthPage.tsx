@@ -12,12 +12,13 @@ export function AuthPage() {
   const navigate = useNavigate();
   const { signIn, signUp, session } = useAuth();
   const [mode, setMode] = React.useState<AuthMode>('signin');
-  
+
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [fullName, setFullName] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState(false); // Prevent double submit
 
   // Redirect if already authenticated
   React.useEffect(() => {
@@ -28,21 +29,32 @@ export function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent duplicate submission
+    if (submitted) return;
+    
     setError(null);
+    setSubmitted(true);
     setLoading(true);
 
     try {
       const { error } = mode === 'signin'
         ? await signIn(email, password)
         : await signUp(email, password, fullName);
-      
+
       if (error) {
         setError(error.message);
+        setLoading(false);
+        setSubmitted(false); // Allow retry
       }
+      // После успеха:
+      // - signIn → redirect через useEffect (session changed)
+      // - signUp → redirect через useEffect (session changed)
+      // setLoading(false) не вызываем, ждём redirect
     } catch (err: any) {
       setError('Произошла ошибка');
-    } finally {
       setLoading(false);
+      setSubmitted(false); // Allow retry
     }
   };
 

@@ -13,7 +13,7 @@ export function ChatsPage() {
   const { chats, loading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
-  const { messages, sendMessage } = useMessages({ chatId: selectedChatId });
+  const { messages, sendMessage, loading: messagesLoading } = useMessages({ chatId: selectedChatId });
 
   // Find selected chat data
   const selectedChat: any = chats.find((c: any) => c.id === selectedChatId);
@@ -177,6 +177,7 @@ export function ChatsPage() {
             chatDescription={selectedChatDescription}
             chatType={selectedChat?.type}
             chatParticipants={selectedChatParticipants}
+            loading={messagesLoading}
           />
         </div>
       </main>

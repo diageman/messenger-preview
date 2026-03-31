@@ -22,6 +22,7 @@ export interface ChatWindowProps {
     avatar: string;
     status?: string;
   }>;
+  loading?: boolean;
 }
 
 export function ChatWindow({
@@ -32,6 +33,7 @@ export function ChatWindow({
   chatDescription,
   chatType = 'direct',
   chatParticipants = [],
+  loading = false,
 }: ChatWindowProps) {
   const [messageText, setMessageText] = React.useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -112,6 +114,25 @@ export function ChatWindow({
           <h3 className="text-lg font-semibold text-text-primary">Выберите чат</h3>
           <p className="mt-2 max-w-sm text-sm text-text-secondary">
             Выберите диалог из списка слева или начните новый чат
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Chat is loading
+  if (loading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-bg-app">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center"
+        >
+          <div className="mx-auto mb-4 flex h-8 w-8 animate-spin items-center justify-center rounded-full border-2 border-accent-yellow border-t-transparent" />
+          <h3 className="text-lg font-semibold text-text-primary">Загрузка чата...</h3>
+          <p className="mt-2 text-sm text-text-muted">
+            Получаем историю сообщений
           </p>
         </motion.div>
       </div>
