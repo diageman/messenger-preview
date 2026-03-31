@@ -14,9 +14,13 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "supabase:test": "node scripts/test-supabase.js",
-    "supabase:seed": "node scripts/seed-demo-data.js"
+    "supabase:seed": "node scripts/seed-demo-data.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "@supabase/supabase-js": "^2.100.1",
     "turbo": "^2.4.4",
     "typescript": "^5.7.3"
