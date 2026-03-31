@@ -209,12 +209,15 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   const [error, setError] = React.useState<Error | null>(null);
 
   // Fetch messages
-  const fetchMessages = React.useCallback(async () => {
+  const fetchMessages = React.useCallback(async (isRefresh = false) => {
     if (!chatId || !profile) return;
 
-    try {
+    // Don't set loading on refresh, keep old messages visible
+    if (!isRefresh) {
       setLoading(true);
+    }
 
+    try {
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -230,13 +233,13 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         .limit(50);
 
       if (error) throw error;
-      
+
       // Add isOwn flag to messages
       const messagesWithOwn = (data || []).map((msg: any) => ({
         ...msg,
         isOwn: msg.sender_id === profile.id,
       }));
-      
+
       setMessages(messagesWithOwn);
 
       // Mark as read
@@ -255,7 +258,7 @@ export function useMessages({ chatId }: UseMessagesOptions) {
       console.error('Error fetching messages:', err);
       setError(err);
     } finally {
-      setLoading(false);
+      if (!isRefresh) setLoading(false);
     }
   }, [chatId, profile]);
 
@@ -336,7 +339,7 @@ export function useMessages({ chatId }: UseMessagesOptions) {
     // Poll every 10 seconds only if realtime fails
     const pollInterval = setInterval(() => {
       console.log('[useMessages] Polling for new messages (fallback)...');
-      fetchMessages();
+      fetchMessages(true);  // Pass true to indicate refresh (not initial load)
     }, 10000);
 
     return () => {

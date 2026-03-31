@@ -27,7 +27,7 @@ export function getChatAvatarData(
 ): AvatarDisplayData {
   // DIRECT CHAT: source of truth только peer profile
   if (chatType === 'direct') {
-    // Если есть peerMember (из profiles), берём из него
+    // 1. Если есть peerMember (из profiles), берём из него
     if (peerMember?.profiles?.full_name) {
       const fullName = peerMember.profiles.full_name;
       const initials = fullName
@@ -44,10 +44,10 @@ export function getChatAvatarData(
       };
     }
     
-    // Если peerMember нет, ищем в participants (исключая current user)
+    // 2. Если peerMember нет, ищем в participants (исключая current user)
     if (currentUserId && participants.length > 0) {
       const peer = participants.find(p => p.id !== currentUserId);
-      if (peer) {
+      if (peer && peer.name !== 'Unknown') {
         const initials = peer.avatar?.toUpperCase() || '?';
         return {
           title: peer.name,
@@ -57,7 +57,7 @@ export function getChatAvatarData(
       }
     }
     
-    // Fallback для direct chat без peer
+    // 3. Fallback для direct chat без peer
     return {
       title: 'Сотрудник',
       initials: '?',

@@ -331,13 +331,13 @@ function ChatListItem({ chat, isSelected, onSelect, delay = 0 }: ChatListItemPro
         {chat.type === 'direct' ? (
           <Avatar
             size="md"
-            fallback={chat.participants[0].avatar}
-            status={chat.participants[0].status}
+            fallback={chat.participants.find((p: any) => p.status !== undefined)?.avatar || '?'}
+            status={chat.participants.find((p: any) => p.status !== undefined)?.status}
             showStatus
           />
         ) : (
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-elevated text-sm font-bold text-text-secondary">
-            {chat.participants.slice(0, 2).map((p) => p.avatar[0]).join('')}
+            {chat.participants.slice(0, 2).map((p: any) => p.avatar[0]).join('')}
           </div>
         )}
         {chat.isPinned && (

@@ -91,10 +91,12 @@ export function ChatsPage() {
     }
 
     // Get avatar data using unified helper
+    // For direct chat: participants should only contain the OTHER user
     const participants = chat.chat_members?.map((m: any) => ({
       id: m.user_id,
       name: m.profiles?.full_name || 'Unknown',
-      avatar: m.profiles?.full_name?.[0] || '?',
+      avatar: m.profiles?.avatar_url || m.profiles?.full_name?.[0] || '?',
+      status: m.profiles?.status || 'offline',
     })) || [];
 
     const avatarData = getChatAvatarData(
@@ -102,7 +104,7 @@ export function ChatsPage() {
       peerMember?.profiles?.full_name || chat.name,
       participants,
       profile?.id,
-      peerMember
+      peerMember  // ✅ PASS PEER MEMBER DIRECTLY
     );
 
     return {
