@@ -46,6 +46,12 @@ const AuthContext = React.createContext<AuthState & {
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateProfile: (updates: {
+    full_name?: string;
+    role?: string;
+    phone?: string;
+    status?: 'online' | 'busy' | 'away' | 'dnd' | 'offline';
+  }) => Promise<{ error: Error | null }>;
 } | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -295,6 +301,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session, fetchProfile]);
 
   // =====================================================
+  // UPDATE PROFILE
+  // =====================================================
+  const updateProfile = React.useCallback(async (updates: {
+    full_name?: string;
+    role?: string;
+    phone?: string;
+    status?: 'online' | 'busy' | 'away' | 'dnd' | 'offline';
+  }) => {
+    if (!profile) {
+      console.error('[Auth] No profile to update');
+      return { error: new Error('No profile') };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id);
+
+      if (error) {
+        console.error('[Auth] Profile update error:', error.message);
+        return { error };
+      }
+
+      console.log('[Auth] Profile updated successfully');
+      // Refresh local profile
+      await fetchProfile(profile.id);
+      return { error: null };
+    } catch (err: any) {
+      console.error('[Auth] Profile update exception:', err.message);
+      return { error: err as Error };
+    }
+  }, [profile, fetchProfile]);
+
+  // =====================================================
   // CONTEXT VALUE
   // =====================================================
   const value = React.useMemo(() => ({
@@ -307,7 +351,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     refreshProfile,
-  }), [session, profile, authLoading, profileLoading, profileError, signIn, signUp, signOut, refreshProfile]);
+    updateProfile,
+  }), [session, profile, authLoading, profileLoading, profileError, signIn, signUp, signOut, refreshProfile, updateProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

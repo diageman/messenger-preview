@@ -44,7 +44,7 @@ import { useSettings } from '../hooks/useSettings';
 import { cn } from '@messenger/ui';
 
 export function SettingsPage() {
-  const { profile: authProfile, refreshProfile } = useAuth();
+  const { profile: authProfile, updateProfile } = useAuth();
   const {
     notifications,
     appearance,
@@ -88,6 +88,8 @@ export function SettingsPage() {
     email: profile.email || '',
     status: profile.status,
   });
+  const [saving, setSaving] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setEditedProfile({
@@ -101,9 +103,27 @@ export function SettingsPage() {
   }, [profile]);
 
   const handleSaveProfile = async () => {
-    // В будущем: обновлять профиль в Supabase
-    await refreshProfile();
-    setIsEditingProfile(false);
+    setSaving(true);
+    setSaveError(null);
+    
+    try {
+      const { error } = await updateProfile({
+        full_name: editedProfile.name,
+        role: editedProfile.role,
+        phone: editedProfile.phone,
+        status: editedProfile.status,
+      });
+      
+      if (error) {
+        setSaveError('Не удалось сохранить профиль');
+      } else {
+        setIsEditingProfile(false);
+      }
+    } catch (err) {
+      setSaveError('Произошла ошибка при сохранении');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -171,17 +191,31 @@ export function SettingsPage() {
                         </Button>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                          <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={saving}>
                             <X className="mr-1.5 h-3.5 w-3.5" />
                             Отмена
                           </Button>
-                          <Button variant="primary" size="sm" onClick={handleSaveProfile}>
-                            <Save className="mr-1.5 h-3.5 w-3.5" />
-                            Сохранить
+                          <Button variant="primary" size="sm" onClick={handleSaveProfile} disabled={saving}>
+                            {saving ? (
+                              <>
+                                <div className="mr-1.5 h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                Сохранение...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="mr-1.5 h-3.5 w-3.5" />
+                                Сохранить
+                              </>
+                            )}
                           </Button>
                         </div>
                       )}
                     </div>
+                    {saveError && (
+                      <div className="mt-3 rounded-lg bg-error/10 p-3 text-sm text-error">
+                        {saveError}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
