@@ -335,12 +335,12 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         console.log('[useMessages] Realtime subscription status:', status);
       });
 
-    // FALLBACK: Polling for messages (MVP reliability) - SLOW to avoid visual jitter
-    // Poll every 10 seconds only if realtime fails
+    // FALLBACK: Polling for messages (MVP reliability)
+    // Poll every 3 seconds for responsive UX
     const pollInterval = setInterval(() => {
       console.log('[useMessages] Polling for new messages (fallback)...');
       fetchMessages(true);  // Pass true to indicate refresh (not initial load)
-    }, 10000);
+    }, 3000);
 
     return () => {
       console.log('[useMessages] Cleaning up realtime subscription and polling for chat:', chatId);

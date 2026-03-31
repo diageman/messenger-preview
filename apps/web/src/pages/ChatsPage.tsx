@@ -69,10 +69,10 @@ export function ChatsPage() {
   const chatListData = (chats as any[]).map((chat: any) => {
     // Get last message (LAST in array, not first!)
     const messagesArray = chat.messages || [];
-    const lastMessage = messagesArray.length > 0 
-      ? messagesArray[messagesArray.length - 1] 
+    const lastMessage = messagesArray.length > 0
+      ? messagesArray[messagesArray.length - 1]
       : null;
-    
+
     // Calculate unread count
     const myRead = chat.chat_reads?.find((r: any) => r.user_id === profile?.id);
     const unreadCount = lastMessage && myRead
@@ -82,16 +82,28 @@ export function ChatsPage() {
         ).length
       : 0;
 
-    // Get peer member for direct chat
+    // Get peer member for direct chat - UNIFIED SOURCE OF TRUTH
     let peerMember = null;
+    let peerFullName = '';
+    let peerRole = '';
+    let peerAvatar = '?';
+    let peerStatus = 'offline';
+    
     if (chat.type === 'direct' && chat.chat_members && profile?.id) {
+      // Find the OTHER participant (not current user)
       peerMember = chat.chat_members.find(
         (m: any) => m.user_id !== profile.id && m.profiles
       );
+      
+      if (peerMember?.profiles) {
+        peerFullName = peerMember.profiles.full_name;
+        peerRole = peerMember.profiles.role || '';
+        peerAvatar = peerMember.profiles.avatar_url || peerMember.profiles.full_name?.[0] || '?';
+        peerStatus = peerMember.profiles.status || 'offline';
+      }
     }
 
     // Get avatar data using unified helper
-    // For direct chat: participants should only contain the OTHER user
     const participants = chat.chat_members?.map((m: any) => ({
       id: m.user_id,
       name: m.profiles?.full_name || 'Unknown',
@@ -101,17 +113,20 @@ export function ChatsPage() {
 
     const avatarData = getChatAvatarData(
       chat.type,
-      peerMember?.profiles?.full_name || chat.name,
+      peerFullName || chat.name,
       participants,
       profile?.id,
-      peerMember  // ✅ PASS PEER MEMBER DIRECTLY
+      peerMember
     );
 
     return {
       id: chat.id,
       type: chat.type as 'direct' | 'group' | 'channel',
       name: avatarData.title,
-      description: peerMember?.profiles?.role || chat.description || '',
+      description: peerRole || chat.description || '',
+      // Pass peer data directly for ChatList to use
+      peerAvatar,
+      peerStatus,
       participants: chat.chat_members?.map((m: any) => ({
         id: m.user_id,
         name: m.profiles?.full_name || 'Unknown',

@@ -22,6 +22,12 @@ import type { Chat } from '../types/chat';
 import type { ChatCategory } from '../types/chat';
 import { NewChatModal } from './NewChatModal';
 
+// Extended Chat type for direct chat peer data
+interface ChatWithPeer extends Chat {
+  peerAvatar?: string;
+  peerStatus?: string;
+}
+
 const categoryLabels = {
   all: 'Все',
   direct: 'Личные',
@@ -59,9 +65,10 @@ export function ChatList({
   const [isNewChatModalOpen, setIsNewChatModalOpen] = React.useState(false);
 
   // Разделяем чаты на секции
-  const pinnedChats = chats.filter((c) => c.isPinned);
-  const recentChats = chats.filter((c) => !c.isPinned && c.timestamp.includes(':')).slice(0, 5);
-  const otherChats = chats.filter((c) => !c.isPinned && !recentChats.includes(c));
+  const chatListWithPeer = chats as ChatWithPeer[];
+  const pinnedChats = chatListWithPeer.filter((c) => c.isPinned);
+  const recentChats = chatListWithPeer.filter((c) => !c.isPinned && c.timestamp.includes(':')).slice(0, 5);
+  const otherChats = chatListWithPeer.filter((c) => !c.isPinned && !recentChats.includes(c));
 
   return (
     <div className="flex h-full flex-col bg-bg-panel">
@@ -299,7 +306,7 @@ export function ChatList({
 
 // ===== CHAT LIST ITEM COMPONENT =====
 interface ChatListItemProps {
-  chat: Chat;
+  chat: ChatWithPeer;
   isSelected: boolean;
   onSelect: () => void;
   delay?: number;
@@ -331,8 +338,8 @@ function ChatListItem({ chat, isSelected, onSelect, delay = 0 }: ChatListItemPro
         {chat.type === 'direct' ? (
           <Avatar
             size="md"
-            fallback={chat.participants.find((p: any) => p.status !== undefined)?.avatar || '?'}
-            status={chat.participants.find((p: any) => p.status !== undefined)?.status}
+            fallback={chat.peerAvatar || '?'}
+            status={chat.peerStatus as 'online' | 'busy' | 'away' | 'offline' | undefined}
             showStatus
           />
         ) : (
