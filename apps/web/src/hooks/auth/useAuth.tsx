@@ -201,17 +201,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // =====================================================
   const signUp = React.useCallback(async (email: string, password: string, fullName: string) => {
     try {
-      // MVP: Allowlist check (temporary protection)
-      const allowedDomains = ['test.local', 'taxiline.local'];
-      const emailDomain = email.split('@')[1];
-      
-      if (!allowedDomains.includes(emailDomain)) {
-        console.error('[Auth] Email domain not allowed:', emailDomain);
-        return { 
-          error: new Error('Регистрация доступна только для корпоративных email. Обратитесь к администратору.') 
-        };
+      // MVP: Simple validation (just check format)
+      if (!email || !email.includes('@')) {
+        return { error: new Error('Введите корректный email') };
       }
-      
+
+      if (password.length < 6) {
+        return { error: new Error('Пароль должен быть не менее 6 символов') };
+      }
+
       // Step 1: Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,

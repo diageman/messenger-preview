@@ -155,12 +155,12 @@ export function useChats() {
       )
       .subscribe();
 
-    // FALLBACK: Polling for chat list (MVP reliability) - SLOW to avoid visual jitter
-    // Poll every 15 seconds only if realtime fails
+    // FALLBACK: Polling for chat list (MVP reliability) - FASTER for better UX
+    // Poll every 5 seconds to keep chat list fresh
     const pollInterval = setInterval(() => {
-      console.log('[useChats] Polling for chat list updates (fallback)...');
+      console.log('[useChats] Polling for chat list updates...');
       fetchChats();
-    }, 15000);
+    }, 5000);
 
     return () => {
       console.log('[useChats] Cleaning up messages chat_list subscription and polling');

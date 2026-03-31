@@ -83,9 +83,7 @@ export function SettingsPage() {
   const [editedProfile, setEditedProfile] = React.useState({
     name: profile.full_name || '',
     role: profile.role || '',
-    department: '',
     phone: profile.phone || '',
-    email: profile.email || '',
     status: profile.status,
   });
   const [saving, setSaving] = React.useState(false);
@@ -95,9 +93,7 @@ export function SettingsPage() {
     setEditedProfile({
       name: profile.full_name || '',
       role: profile.role || '',
-      department: '',
       phone: profile.phone || '',
-      email: profile.email || '',
       status: profile.status,
     });
   }, [profile]);
@@ -130,9 +126,7 @@ export function SettingsPage() {
     setEditedProfile({
       name: profile.full_name || '',
       role: profile.role || '',
-      department: '',
       phone: profile.phone || '',
-      email: profile.email || '',
       status: profile.status,
     });
     setIsEditingProfile(false);
@@ -261,14 +255,6 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-text-secondary">Отдел</label>
-                    <Input
-                      value={editedProfile.department}
-                      onChange={(e) => setEditedProfile({ ...editedProfile, department: e.target.value })}
-                      className="h-9 bg-bg-panel"
-                    />
-                  </div>
-                  <div className="space-y-2">
                     <label className="text-xs font-medium text-text-secondary">Телефон</label>
                     <Input
                       value={editedProfile.phone}
@@ -277,21 +263,26 @@ export function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <label className="text-xs font-medium text-text-secondary">Email</label>
+                    <label className="text-xs font-medium text-text-secondary">
+                      Email
+                      <span className="ml-2 text-xs text-text-muted">(не может быть изменён)</span>
+                    </label>
                     <Input
                       type="email"
-                      value={editedProfile.email}
-                      onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
-                      className="h-9 bg-bg-panel"
+                      value={profile.email || ''}
+                      disabled
+                      className="h-9 bg-bg-panel opacity-50 cursor-not-allowed"
                     />
+                    <p className="text-xs text-text-muted">
+                      Для изменения email обратитесь к администратору
+                    </p>
                   </div>
                 </div>
               ) : (
                 <div className="divide-y divide-border-soft py-2">
                   <SettingsRow label="ФИО" value={profile.full_name || '—'} icon={CircleUser} />
-                  <SettingsRow label="Должность" value={profileWithDept.role || '—'} icon={Briefcase} />
-                  <SettingsRow label="Отдел" value={profileWithDept.department || '—'} icon={LayoutGrid} />
-                  <SettingsRow label="Телефон" value={profileWithDept.phone || '—'} icon={Phone} />
+                  <SettingsRow label="Должность" value={profile.role || '—'} icon={Briefcase} />
+                  <SettingsRow label="Телефон" value={profile.phone || '—'} icon={Phone} />
                   <SettingsRow label="Email" value={profile.email || '—'} icon={Mail} />
                   <SettingsRow label="Статус" value={profile.status === 'online' ? 'На линии' : (profile.status === 'dnd' ? 'Не беспокоить' : profile.status)} icon={CircleUser} />
                 </div>
