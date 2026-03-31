@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // =====================================================
-  // SIGN UP (with auto-profile creation)
+  // SIGN UP (trigger auto-creates profile)
   // =====================================================
   const signUp = React.useCallback(async (email: string, password: string, fullName: string) => {
     try {
@@ -210,10 +210,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error('Пароль должен быть не менее 6 символов') };
       }
 
-      // Step 1: Create auth user
+      // Step 1: Create auth user (trigger will auto-create profile)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
       });
 
       if (authError) {
@@ -226,46 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error('No user returned from signup') };
       }
 
-      const userId = authData.user.id;
-
-      // Step 2: Get or create default organization
-      const orgId = '00000000-0000-0000-0000-000000000001';
-
-      // Try to get organization, create if not exists
-      const { data: existingOrg } = await supabase
-        .from('organizations')
-        .select('id')
-        .eq('id', orgId)
-        .single();
-
-      if (!existingOrg) {
-        await supabase
-          .from('organizations')
-          .insert({
-            id: orgId,
-            name: 'Таксопарк "Линия"',
-            slug: 'taxi-line',
-          });
-      }
-
-      // Step 3: Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          organization_id: orgId,
-          full_name: fullName,
-          email: email,
-          role: 'Сотрудник',
-          status: 'online',
-        });
-
-      if (profileError) {
-        console.error('[Auth] Profile creation error:', profileError.message);
-        // Don't fail signup, but log the error
-      }
-
-      console.log('[Auth] Sign up successful, profile created');
+      console.log('[Auth] Sign up successful, profile will be created by trigger');
       return { error: null };
     } catch (error: any) {
       console.error('[Auth] Sign up exception:', error.message);

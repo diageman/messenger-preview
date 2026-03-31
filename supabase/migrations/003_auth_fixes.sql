@@ -4,41 +4,45 @@
 
 -- 1. Auto-create profile trigger (после создания auth.users)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
-  org_id uuid := '00000000-0000-0000-0000-000000000001';
+  v_org_id uuid := '00000000-0000-0000-0000-000000000001'::uuid;
+  v_full_name text;
 BEGIN
-  -- Get or create organization
-  INSERT INTO organizations (id, name, slug)
-  VALUES (org_id, 'Таксопарк "Линия"', 'taxi-line')
-  ON CONFLICT (id) DO NOTHING;
-  
-  -- Create profile
+  v_full_name := COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    SPLIT_PART(NEW.email, '@', 1)
+  );
+
   INSERT INTO public.profiles (
     id,
     organization_id,
     full_name,
-    email,
     role,
+    email,
     status
   )
   VALUES (
     NEW.id,
-    org_id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'Сотрудник'),
-    NEW.email,
+    v_org_id,
+    v_full_name,
     'Сотрудник',
+    NEW.email,
     'online'
   )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    updated_at = now();
-  
+  ON CONFLICT (id) DO NOTHING;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger after INSERT on auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
@@ -54,9 +58,5 @@ CREATE POLICY users_update_own_profile ON profiles FOR UPDATE
 DROP POLICY IF EXISTS users_insert_own_profile ON profiles;
 CREATE POLICY users_insert_own_profile ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
-
--- 4. Enable email autoconfirm (опционально, для test mode)
--- В Supabase Dashboard: Authentication → Providers → Email
--- [ ] Enable email confirmations ← OFF
 
 COMMENT ON FUNCTION public.handle_new_user() IS 'Auto-creates profile when auth.users row is inserted';
