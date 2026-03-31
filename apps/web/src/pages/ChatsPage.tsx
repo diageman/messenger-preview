@@ -194,6 +194,7 @@ export function ChatsPage() {
             chatDescription={selectedChatDescription}
             chatType={selectedChat?.type}
             chatParticipants={selectedChatParticipants}
+            peerMember={selectedPeerMember}
             loading={messagesLoading}
           />
         </div>

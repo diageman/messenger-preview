@@ -23,6 +23,7 @@ export interface ChatWindowProps {
     status?: string;
   }>;
   loading?: boolean;
+  peerMember?: any;  // For direct chat peer identity
 }
 
 export function ChatWindow({
@@ -34,6 +35,7 @@ export function ChatWindow({
   chatType = 'direct',
   chatParticipants = [],
   loading = false,
+  peerMember,
 }: ChatWindowProps) {
   const [messageText, setMessageText] = React.useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -87,8 +89,8 @@ export function ChatWindow({
     chatType,
     chatName,
     chatParticipants,
-    undefined,  // currentUserId not needed here
-    undefined   // peerMember already resolved in ChatsPage
+    undefined,  // currentUserId not needed when peerMember is provided
+    peerMember  // ✅ PASS PEER MEMBER DIRECTLY
   );
   
   const isDirectChat = chatType === 'direct';
