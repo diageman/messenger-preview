@@ -111,7 +111,7 @@ export function useChats() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]); // Removed fetchChats from deps
 
-  // Subscribe to messages for chat list updates (REALTIME + smart patching)
+  // Subscribe to messages for chat list updates (REALTIME + dedupe)
   React.useEffect(() => {
     if (!profile) return;
 
@@ -138,7 +138,7 @@ export function useChats() {
             if (chatIndex === -1) return prevChats; // Not our chat
 
             const existingChat = prevChats[chatIndex];
-            
+
             // Dedupe: check if message already exists in this chat
             const existingMessages = existingChat.messages || [];
             const messageExists = existingMessages.some((m: any) => m.id === newMessage.id);
@@ -166,12 +166,12 @@ export function useChats() {
       )
       .subscribe();
 
-    // FALLBACK: Polling for chat list (MVP reliability) - FASTER for better UX
-    // Poll every 5 seconds to keep chat list fresh
+    // FALLBACK: Polling for chat list (MVP reliability) - REPAIR ONLY
+    // Poll every 10 seconds, realtime is primary path
     const pollInterval = setInterval(() => {
-      console.log('[useChats] Polling for chat list updates...');
+      console.log('[useChats] Polling for chat list updates (repair)...');
       fetchChats(true);  // Pass true to indicate refresh (not initial load)
-    }, 5000);
+    }, 10000);
 
     return () => {
       console.log('[useChats] Cleaning up messages chat_list subscription and polling');
@@ -335,12 +335,12 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         console.log('[useMessages] Realtime subscription status:', status);
       });
 
-    // FALLBACK: Polling for messages (MVP reliability)
-    // Poll every 3 seconds for responsive UX
+    // FALLBACK: Polling for messages (MVP reliability) - REPAIR ONLY
+    // Poll every 10 seconds, realtime is primary path
     const pollInterval = setInterval(() => {
-      console.log('[useMessages] Polling for new messages (fallback)...');
+      console.log('[useMessages] Polling for new messages (repair)...');
       fetchMessages(true);  // Pass true to indicate refresh (not initial load)
-    }, 3000);
+    }, 10000);
 
     return () => {
       console.log('[useMessages] Cleaning up realtime subscription and polling for chat:', chatId);
