@@ -14,16 +14,14 @@ import type { Chat, Message } from '@/types/chat';
 export function useChats() {
   const { profile } = useAuth();
   const [chats, setChats] = React.useState<Chat[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);  // Initial load
   const [error, setError] = React.useState<Error | null>(null);
 
   // Fetch chats
-  const fetchChats = React.useCallback(async () => {
+  const fetchChats = React.useCallback(async (isRefresh = false) => {
     if (!profile) return;
 
     try {
-      setLoading(true);
-
       // Step 1: Get chat_ids where I'm a member
       const { data: memberData, error: memberError } = await supabase
         .from('chat_members')
@@ -35,8 +33,10 @@ export function useChats() {
       const chatIds = memberData?.map(m => m.chat_id) || [];
 
       if (chatIds.length === 0) {
-        setChats([]);
-        setLoading(false);
+        if (!isRefresh) {
+          setChats([]);
+          setLoading(false);
+        }
         return;
       }
 
@@ -72,13 +72,14 @@ export function useChats() {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      
+
+      // Always update chats (no empty state during refresh)
       setChats(data || []);
     } catch (err: any) {
       console.error('Error fetching chats:', err);
       setError(err);
     } finally {
-      setLoading(false);
+      if (!isRefresh) setLoading(false);
     }
   }, [profile]);
 
@@ -98,7 +99,7 @@ export function useChats() {
           table: 'chats',
         },
         () => {
-          fetchChats();
+          fetchChats(true);  // Refresh, not initial load
         }
       )
       .subscribe();
@@ -159,7 +160,7 @@ export function useChats() {
     // Poll every 5 seconds to keep chat list fresh
     const pollInterval = setInterval(() => {
       console.log('[useChats] Polling for chat list updates...');
-      fetchChats();
+      fetchChats(true);  // Pass true to indicate refresh (not initial load)
     }, 5000);
 
     return () => {

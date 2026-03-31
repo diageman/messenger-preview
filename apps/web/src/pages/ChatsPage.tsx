@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/auth/useAuth';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 
 export function ChatsPage() {
-  const { profile, authLoading } = useAuth();
+  const { profile } = useAuth();
   const { chats, loading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
@@ -143,7 +143,7 @@ export function ChatsPage() {
           style={{ width: chatListResizer.width }}
         >
           <ChatList
-            chats={loading || authLoading ? [] : chatListData}
+            chats={loading ? [] : chatListData}
             selectedChatId={selectedChatId}
             onSelectChat={handleSelectChat}
             searchQuery=""
