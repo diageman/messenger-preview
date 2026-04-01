@@ -2,17 +2,19 @@ import { cn } from '@messenger/ui';
 import { TopBar } from '../components/TopBar';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
-import { useChats, useMessages, useAuth } from '../hooks/chats/useChatsZustand';
+import { useMessages, useAuth } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
 import { useState, useEffect } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
+import { useChatStore } from '@/stores/useChatStore';
 
 export function ChatsPage() {
   // =====================================================
   // 1. ALL HOOKS AT THE TOP (NO CONDITIONS)
   // =====================================================
   const { profile } = useAuth();
-  const { chats = [], loading } = useChats();
+  const chats = useChatStore((state) => state.chats);  // ← Селектор вместо деструктуризации
+  const loading = useChatStore((state) => state.loading);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const { messages = [], sendMessage } = useMessages({ chatId: selectedChatId }) as any;
   const chatListResizer = useResizable({
@@ -32,7 +34,7 @@ export function ChatsPage() {
     if (!loading && chats.length > 0 && selectedChatId === null) {
       setSelectedChatId(chats[0].id);
     }
-  }, [loading, chats.length, selectedChatId]);
+  }, [loading, chats.length, selectedChatId]);  // ← chats.length это примитив, OK
 
   // =====================================================
   // 3. COMPUTED VALUES (pure, no side effects)
