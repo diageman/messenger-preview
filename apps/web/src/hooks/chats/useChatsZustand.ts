@@ -52,9 +52,12 @@ interface UseMessagesOptions {
 }
 
 export function useMessages({ chatId }: UseMessagesOptions) {
-  const messages = useChatStore((state) => 
-    chatId ? state.messages[chatId] || [] : []
-  );
+  // Use selector without useCallback to avoid React error #300
+  const messages = useChatStore((state) => {
+    if (!chatId) return [];
+    return state.messages[chatId] || [];
+  });
+  
   const addMessage = useChatStore((state) => state.addMessage);
   const clearMessages = useChatStore((state) => state.clearMessages);
 
