@@ -4,7 +4,7 @@ import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
 import { useMessages, useAuth } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 import { useChatStore } from '@/stores/useChatStore';
 
@@ -68,8 +68,8 @@ export function ChatsPage() {
     status: m.profiles?.status || 'offline',
   })) || [];
 
-  // Transform chats for ChatList component (pure function)
-  const chatListData = (chats as any[]).map((chat: any) => {
+  // Transform chats for ChatList component (MEMOIZED!)
+  const chatListData = useMemo(() => (chats as any[]).map((chat: any) => {
     const messagesArray = chat.messages || [];
     const lastMessage = messagesArray.length > 0
       ? messagesArray[messagesArray.length - 1]
@@ -126,7 +126,7 @@ export function ChatsPage() {
       isPinned: false,
       isImportant: false,
     };
-  });
+  }), [chats, profile?.id]);  // ← Пересоздавать только когда chats или profile изменились
 
   const unreadTotal = chatListData.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
