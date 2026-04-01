@@ -2,40 +2,36 @@ import { cn } from '@messenger/ui';
 import { TopBar } from '../components/TopBar';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
-import { useChats, useMessages } from '../hooks/chats/useChatsZustand';
+import { useChats, useMessages, useAuth } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
 import { useState } from 'react';
-import { useAuth } from '@/hooks/auth/useAuth';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 
 export function ChatsPage() {
+  // =====================================================
+  // ALL HOOKS AT THE TOP - NO CONDITIONS!
+  // =====================================================
   const { profile } = useAuth();
-  const { chats = [], loading } = useChats();  // ← Default to empty array
+  const { chats = [], loading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const { messages = [], sendMessage } = useMessages({ chatId: selectedChatId }) as any;
+  const chatListResizer = useResizable({
+    key: 'messenger_chatlist_width',
+    minWidth: 72,
+    maxWidth: 420,
+    defaultValue: 320,
+    collapsedWidth: 72,
+  });
 
-  const { messages = [], sendMessage, loading: messagesLoading } = useMessages({ chatId: selectedChatId }) as any;
-
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center bg-bg-app">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-yellow border-t-transparent" />
-          <p className="text-sm text-text-muted">Загрузка чатов...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Find selected chat data
+  // =====================================================
+  // COMPUTED VALUES (after hooks)
+  // =====================================================
   const selectedChat: any = chats.find((c: any) => c.id === selectedChatId);
-  
-  // Get peer member for direct chat
+
   const selectedPeerMember = selectedChat?.type === 'direct' && selectedChat?.chat_members && profile?.id
     ? selectedChat.chat_members.find((m: any) => m.user_id !== profile.id && m.profiles)
     : null;
 
-  // Get avatar data using unified helper
   const selectedParticipants = selectedChat?.chat_members?.map((m: any) => ({
     id: m.user_id,
     name: m.profiles?.full_name || 'Unknown',
@@ -58,19 +54,9 @@ export function ChatsPage() {
     avatar: m.profiles?.avatar_url || m.profiles?.full_name?.[0] || '?',
     status: m.profiles?.status || 'offline',
   })) || [];
-  
-  const chatListResizer = useResizable({
-    key: 'messenger_chatlist_width',
-    minWidth: 72,
-    maxWidth: 420,
-    defaultValue: 320,
-    collapsedWidth: 72,
-  });
 
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
-    // Mark as read when opening chat
-    // This will be handled by useMessages automatically
   };
 
   const handleSendMessage = async (content: string) => {
@@ -94,25 +80,12 @@ export function ChatsPage() {
         ).length
       : 0;
 
-    // Get peer member for direct chat - UNIFIED SOURCE OF TRUTH
+    // Get peer member for direct chat
     let peerMember = null;
-    let peerFullName = '';
-    let peerRole = '';
-    let peerAvatar = '?';
-    let peerStatus = 'offline';
-    
     if (chat.type === 'direct' && chat.chat_members && profile?.id) {
-      // Find the OTHER participant (not current user)
       peerMember = chat.chat_members.find(
         (m: any) => m.user_id !== profile.id && m.profiles
       );
-      
-      if (peerMember?.profiles) {
-        peerFullName = peerMember.profiles.full_name;
-        peerRole = peerMember.profiles.role || '';
-        peerAvatar = peerMember.profiles.avatar_url || peerMember.profiles.full_name?.[0] || '?';
-        peerStatus = peerMember.profiles.status || 'offline';
-      }
     }
 
     // Get avatar data using unified helper
@@ -125,7 +98,7 @@ export function ChatsPage() {
 
     const avatarData = getChatAvatarData(
       chat.type,
-      peerFullName || chat.name,
+      peerMember?.profiles?.full_name || chat.name,
       participants,
       profile?.id,
       peerMember
@@ -135,10 +108,9 @@ export function ChatsPage() {
       id: chat.id,
       type: chat.type as 'direct' | 'group' | 'channel',
       name: avatarData.title,
-      description: peerRole || chat.description || '',
-      // Pass peer data directly for ChatList to use
-      peerAvatar,
-      peerStatus,
+      description: peerMember?.profiles?.role || chat.description || '',
+      peerAvatar: peerMember?.profiles?.avatar_url || peerMember?.profiles?.full_name?.[0] || '?',
+      peerStatus: peerMember?.profiles?.status || 'offline',
       participants: chat.chat_members?.map((m: any) => ({
         id: m.user_id,
         name: m.profiles?.full_name || 'Unknown',
@@ -157,6 +129,20 @@ export function ChatsPage() {
 
   const unreadTotal = chatListData.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
+  // =====================================================
+  // LOADING STATE (AFTER ALL HOOKS)
+  // =====================================================
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-bg-app">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-yellow border-t-transparent" />
+          <p className="text-sm text-text-muted">Загрузка чатов...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col bg-bg-app">
       <TopBar
@@ -172,7 +158,7 @@ export function ChatsPage() {
           style={{ width: chatListResizer.width }}
         >
           <ChatList
-            chats={loading ? [] : chatListData}
+            chats={chatListData}
             selectedChatId={selectedChatId}
             onSelectChat={handleSelectChat}
             searchQuery=""
@@ -207,7 +193,7 @@ export function ChatsPage() {
             chatType={selectedChat?.type}
             chatParticipants={selectedChatParticipants}
             peerMember={selectedPeerMember}
-            loading={messagesLoading}
+            loading={false}
           />
         </div>
       </main>
