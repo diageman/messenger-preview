@@ -25,47 +25,9 @@ function PageLoading({ message = 'Загрузка...' }: { message?: string }) 
   );
 }
 
-// Profile missing error component
-function ProfileMissing() {
-  const { signOut, profileError } = useAuth();
-  
-  return (
-    <div className="flex h-full items-center justify-center bg-bg-app">
-      <div className="max-w-md space-y-4 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-error/10">
-          <span className="text-3xl">⚠️</span>
-        </div>
-        <h2 className="text-lg font-semibold text-text-primary">Профиль не найден</h2>
-        <p className="text-sm text-text-muted">
-          Ваш пользователь существует, но профиль не найден в базе данных.
-        </p>
-        {profileError && (
-          <div className="rounded-lg bg-error/10 p-3 text-xs text-error">
-            Ошибка: {profileError}
-          </div>
-        )}
-        <div className="flex gap-2 justify-center">
-          <button
-            onClick={signOut}
-            className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
-          >
-            Выйти
-          </button>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 text-sm font-medium bg-accent-yellow text-black rounded hover:bg-accent-yellow/90"
-          >
-            Повторить
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, authLoading, profileLoading, profile } = useAuth();
+  const { session, authLoading } = useAuth();
 
   // Still restoring session
   if (authLoading) {
@@ -78,17 +40,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  // Session exists but profile is loading
-  if (profileLoading) {
-    return <PageLoading message="Загрузка профиля..." />;
-  }
-
-  // Session exists but profile is missing (RLS error, no row, etc.)
-  if (!profile) {
-    return <ProfileMissing />;
-  }
-
-  // Ready - session and profile both loaded
+  // Ready - render children (they handle their own loading)
   return <>{children}</>;
 }
 
