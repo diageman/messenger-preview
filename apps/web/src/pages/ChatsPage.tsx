@@ -2,7 +2,7 @@ import { cn } from '@messenger/ui';
 import { TopBar } from '../components/TopBar';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
-import { useChats, useMessages } from '../hooks/chats/useChats';
+import { useChats, useMessages } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/auth/useAuth';
@@ -13,7 +13,7 @@ export function ChatsPage() {
   const { chats, loading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
-  const { messages, sendMessage, loading: messagesLoading } = useMessages({ chatId: selectedChatId });
+  const { messages, sendMessage, loading: messagesLoading } = useMessages({ chatId: selectedChatId }) as any;
 
   // Find selected chat data
   const selectedChat: any = chats.find((c: any) => c.id === selectedChatId);

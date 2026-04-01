@@ -208,6 +208,19 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
+  // Reset messages when chatId changes
+  React.useEffect(() => {
+    if (!chatId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+    // Reset state for new chat
+    setMessages([]);
+    setLoading(true);
+    setError(null);
+  }, [chatId]);
+
   // Fetch messages - MERGE strategy, not replace
   const fetchMessages = React.useCallback(async (isRefresh = false) => {
     if (!chatId || !profile) return;
@@ -245,17 +258,17 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         if (!prev || prev.length === 0) {
           return messagesWithOwn;
         }
-        
+
         // Create set of existing message IDs
         const existingIds = new Set(prev.map(m => m.id));
-        
+
         // Add only messages that aren't already in state
         const newMessages = messagesWithOwn.filter(m => !existingIds.has(m.id));
-        
+
         // Combine and sort by created_at
         const combined = [...prev, ...newMessages];
         combined.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        
+
         return combined;
       });
 
