@@ -12,7 +12,7 @@ import { useChatStore, initChatSubscriptions } from '@/stores/useChatStore';
 
 export function useChats() {
   const { profile } = useAuth();
-  const { chats, loading, error, fetchChats } = useChatStore();
+  const { chats = [], loading, error, fetchChats } = useChatStore();
 
   // Debug log
   console.log('[useChats] Profile:', profile?.id, 'Loading:', loading);
@@ -30,13 +30,9 @@ export function useChats() {
     if (profile?.id) {
       console.log('[useChats] Fetching chats for user:', profile.id);
       fetchChats();
-    } else if (profile === null) {
-      // User logged out - clear chats
-      console.log('[useChats] User logged out, clearing chats');
-      useChatStore.getState().setChats([]);
-      useChatStore.getState().setLoading(false);
     }
-    // Если profile = undefined - ждём (не делаем ничего)
+    // Если profile = null или undefined - просто не делаем fetch
+    // Стор сам очистится при logout через auth state change
   }, [profile?.id]);
 
   return {

@@ -10,10 +10,22 @@ import { getChatAvatarData } from '@/lib/chatAvatar';
 
 export function ChatsPage() {
   const { profile } = useAuth();
-  const { chats, loading } = useChats();
+  const { chats = [], loading } = useChats();  // ← Default to empty array
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
-  const { messages, sendMessage, loading: messagesLoading } = useMessages({ chatId: selectedChatId }) as any;
+  const { messages = [], sendMessage, loading: messagesLoading } = useMessages({ chatId: selectedChatId }) as any;
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-bg-app">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-yellow border-t-transparent" />
+          <p className="text-sm text-text-muted">Загрузка чатов...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Find selected chat data
   const selectedChat: any = chats.find((c: any) => c.id === selectedChatId);
