@@ -4,12 +4,12 @@ import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
 import { useChats, useMessages, useAuth } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 
 export function ChatsPage() {
   // =====================================================
-  // ALL HOOKS AT THE TOP - NO CONDITIONS!
+  // 1. ALL HOOKS AT THE TOP (NO CONDITIONS)
   // =====================================================
   const { profile } = useAuth();
   const { chats = [], loading } = useChats();
@@ -24,7 +24,18 @@ export function ChatsPage() {
   });
 
   // =====================================================
-  // COMPUTED VALUES (after hooks)
+  // 2. EFFECTS ONLY (no state updates in render)
+  // =====================================================
+  
+  // Auto-select first chat when chats load (safe - only when length changes)
+  useEffect(() => {
+    if (!loading && chats.length > 0 && selectedChatId === null) {
+      setSelectedChatId(chats[0].id);
+    }
+  }, [loading, chats.length, selectedChatId]);
+
+  // =====================================================
+  // 3. COMPUTED VALUES (pure, no side effects)
   // =====================================================
   const selectedChat: any = chats.find((c: any) => c.id === selectedChatId);
 
@@ -55,23 +66,13 @@ export function ChatsPage() {
     status: m.profiles?.status || 'offline',
   })) || [];
 
-  const handleSelectChat = (chatId: string) => {
-    setSelectedChatId(chatId);
-  };
-
-  const handleSendMessage = async (content: string) => {
-    await sendMessage(content);
-  };
-
-  // Transform chats for ChatList component
+  // Transform chats for ChatList component (pure function)
   const chatListData = (chats as any[]).map((chat: any) => {
-    // Get last message (LAST in array, not first!)
     const messagesArray = chat.messages || [];
     const lastMessage = messagesArray.length > 0
       ? messagesArray[messagesArray.length - 1]
       : null;
 
-    // Calculate unread count
     const myRead = chat.chat_reads?.find((r: any) => r.user_id === profile?.id);
     const unreadCount = lastMessage && myRead
       ? messagesArray.filter((m: any) =>
@@ -80,7 +81,6 @@ export function ChatsPage() {
         ).length
       : 0;
 
-    // Get peer member for direct chat
     let peerMember = null;
     if (chat.type === 'direct' && chat.chat_members && profile?.id) {
       peerMember = chat.chat_members.find(
@@ -88,7 +88,6 @@ export function ChatsPage() {
       );
     }
 
-    // Get avatar data using unified helper
     const participants = chat.chat_members?.map((m: any) => ({
       id: m.user_id,
       name: m.profiles?.full_name || 'Unknown',
@@ -130,7 +129,18 @@ export function ChatsPage() {
   const unreadTotal = chatListData.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
   // =====================================================
-  // LOADING STATE (AFTER ALL HOOKS)
+  // 4. EVENT HANDLERS (state updates OK here)
+  // =====================================================
+  const handleSelectChat = (chatId: string) => {
+    setSelectedChatId(chatId);
+  };
+
+  const handleSendMessage = async (content: string) => {
+    await sendMessage(content);
+  };
+
+  // =====================================================
+  // 5. EARLY RETURNS (AFTER ALL HOOKS)
   // =====================================================
   if (loading) {
     return (
@@ -143,6 +153,9 @@ export function ChatsPage() {
     );
   }
 
+  // =====================================================
+  // 6. MAIN RENDER
+  // =====================================================
   return (
     <div className="flex h-full flex-col bg-bg-app">
       <TopBar
@@ -152,7 +165,6 @@ export function ChatsPage() {
       />
 
       <main className="flex flex-1 overflow-hidden">
-        {/* Chat List Panel */}
         <div
           className="relative flex shrink-0 flex-col"
           style={{ width: chatListResizer.width }}
@@ -170,7 +182,6 @@ export function ChatsPage() {
             unreadTotal={unreadTotal}
           />
 
-          {/* Resize Handle */}
           {!chatListResizer.isCollapsed && (
             <div
               className={cn(
@@ -182,7 +193,6 @@ export function ChatsPage() {
           )}
         </div>
 
-        {/* Chat Window Panel */}
         <div className="flex-1 overflow-hidden">
           <ChatWindow
             chatId={selectedChatId}
