@@ -207,6 +207,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       setLoading(true);
 
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id;
+
+      if (!userId) {
+        console.log('[fetchChats] No user authenticated, skipping');
+        setLoading(false);
+        return;
+      }
+
+      // Get chat_ids where user is a member
+      const { data: memberData, error: memberError } = await supabase
+        .from('chat_members')
+        .select('chat_id')
+        .eq('user_id', userId);
+
+      if (memberError) throw memberError;
+
+      const chatIds = memberData?.map(m => m.chat_id) || [];
+
+      if (chatIds.length === 0) {
+        setChats([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('chats')
         .select(`
@@ -234,6 +259,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             last_read_at
           )
         `)
+        .in('id', chatIds)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;

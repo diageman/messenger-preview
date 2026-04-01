@@ -11,17 +11,22 @@ import { useChatStore, initChatSubscriptions } from '@/stores/useChatStore';
 // =====================================================
 
 export function useChats() {
+  const { profile } = useAuth();
   const { chats, loading, error, fetchChats } = useChatStore();
 
-  // Initialize realtime subscriptions once
+  // Initialize realtime subscriptions AFTER profile loads
   React.useEffect(() => {
-    initChatSubscriptions();
-  }, []);
+    if (profile) {
+      initChatSubscriptions();
+    }
+  }, [profile]);
 
-  // Fetch chats on mount
+  // Fetch chats AFTER profile loads
   React.useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+    if (profile) {
+      fetchChats();
+    }
+  }, [profile, fetchChats]);
 
   return {
     chats,
