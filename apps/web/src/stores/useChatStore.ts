@@ -95,10 +95,10 @@ interface ChatState {
 // =====================================================
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  // Initial state
+  // Initial state - loading FALSE по умолчанию!
   chats: [],
   messages: {},
-  loading: true,
+  loading: false,  // ← НЕ true!
   error: null,
 
   // Actions
@@ -202,17 +202,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Fetch chats from DB
   fetchChats: async () => {
-    const { setLoading, setChats, setError } = get();
+    console.log('[ChatStore] fetchChats called');
     
-    try {
-      setLoading(true);
+    // Set loading TRUE в начале
+    set({ loading: true, error: null });
 
+    try {
       const { data: authData } = await supabase.auth.getUser();
       const userId = authData?.user?.id;
 
+      console.log('[ChatStore] User ID:', userId);
+
       if (!userId) {
-        console.log('[fetchChats] No user authenticated, skipping');
-        setLoading(false);
+        console.log('[ChatStore] No user authenticated, clearing chats');
+        set({ chats: [], loading: false });
         return;
       }
 
@@ -226,9 +229,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const chatIds = memberData?.map(m => m.chat_id) || [];
 
+      console.log('[ChatStore] Found chatIds:', chatIds.length);
+
       if (chatIds.length === 0) {
-        setChats([]);
-        setLoading(false);
+        console.log('[ChatStore] No chats found');
+        set({ chats: [], loading: false });
         return;
       }
 
@@ -264,14 +269,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (error) throw error;
 
-      setChats(data || []);
-      setError(null);
+      console.log('[ChatStore] Fetched chats:', data.length);
+
+      set({ chats: data || [], loading: false });
     } catch (err: any) {
-      console.error('Error fetching chats:', err);
-      setError(err);
-    } finally {
-      setLoading(false);
+      console.error('[ChatStore] Error fetching chats:', err);
+      set({ error: err, loading: false });
     }
+    // loading:false вызывается в try/catch выше
   },
 }));
 

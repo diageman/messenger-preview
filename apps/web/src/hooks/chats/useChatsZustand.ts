@@ -14,19 +14,30 @@ export function useChats() {
   const { profile } = useAuth();
   const { chats, loading, error, fetchChats } = useChatStore();
 
+  // Debug log
+  console.log('[useChats] Profile:', profile?.id, 'Loading:', loading);
+
   // Initialize realtime subscriptions AFTER profile loads
   React.useEffect(() => {
-    if (profile) {
+    if (profile?.id) {
+      console.log('[useChats] Initializing subscriptions for user:', profile.id);
       initChatSubscriptions();
     }
-  }, [profile]);
+  }, [profile?.id]);
 
   // Fetch chats AFTER profile loads
   React.useEffect(() => {
-    if (profile) {
+    if (profile?.id) {
+      console.log('[useChats] Fetching chats for user:', profile.id);
       fetchChats();
+    } else if (profile === null) {
+      // User logged out - clear chats
+      console.log('[useChats] User logged out, clearing chats');
+      useChatStore.getState().setChats([]);
+      useChatStore.getState().setLoading(false);
     }
-  }, [profile, fetchChats]);
+    // Если profile = undefined - ждём (не делаем ничего)
+  }, [profile?.id]);
 
   return {
     chats,
