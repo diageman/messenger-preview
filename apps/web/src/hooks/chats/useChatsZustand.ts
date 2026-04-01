@@ -61,14 +61,14 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   const addMessage = useChatStore((state) => state.addMessage);
   const clearMessages = useChatStore((state) => state.clearMessages);
 
-  // Clear messages when chatId changes
+  // Clear messages when chatId changes (safe - only clears, doesn't trigger re-fetch)
   React.useEffect(() => {
     if (!chatId) {
       clearMessages('');
     } else {
       clearMessages(chatId);
     }
-  }, [chatId, clearMessages]);
+  }, [chatId]);  // ← УБРАЛ clearMessages из deps!
 
   // Send message with optimistic update
   const sendMessage = React.useCallback(async (content: string, type: string = 'text') => {

@@ -28,13 +28,13 @@ export function ChatsPage() {
   // =====================================================
   // 2. EFFECTS ONLY (no state updates in render)
   // =====================================================
-  
+
   // Auto-select first chat when chats load (safe - only when length changes)
   useEffect(() => {
     if (!loading && chats.length > 0 && selectedChatId === null) {
       setSelectedChatId(chats[0].id);
     }
-  }, [loading, chats.length, selectedChatId]);  // ← chats.length это примитив, OK
+  }, [loading, chats.length]);  // ← УБРАЛ selectedChatId из deps!
 
   // =====================================================
   // 3. COMPUTED VALUES (pure, no side effects)
