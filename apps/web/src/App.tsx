@@ -45,6 +45,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Layout() {
+  const { authLoading } = useAuth();
+
+  // Wait for auth to load before rendering layout
+  if (authLoading) {
+    return <PageLoading message="Восстановление сессии..." />;
+  }
+
   return (
     <div className="flex h-screen bg-bg-app">
       <Sidebar />
