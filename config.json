@@ -1,0 +1,22 @@
+{
+"mcpServers": {
+    "filesystem": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            "C:\\Projects\\Messenger"
+        ]
+    },
+    "notion": {
+        "command": "npx",
+        "args": [
+            "-y",
+            "@suekou/mcp-notion-server"
+        ],
+        "env": {
+            "NOTION_API_TOKEN": "token"
+        }
+    }
+}
+}

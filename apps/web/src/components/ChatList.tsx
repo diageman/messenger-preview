@@ -64,11 +64,14 @@ export function ChatList({
   const navigate = useNavigate();
   const [isNewChatModalOpen, setIsNewChatModalOpen] = React.useState(false);
 
-  // Разделяем чаты на секции
-  const chatListWithPeer = chats as ChatWithPeer[];
-  const pinnedChats = chatListWithPeer.filter((c) => c.isPinned);
-  const recentChats = chatListWithPeer.filter((c) => !c.isPinned && c.timestamp.includes(':')).slice(0, 5);
-  const otherChats = chatListWithPeer.filter((c) => !c.isPinned && !recentChats.includes(c));
+  // Разделяем чаты на секции (MEMOIZED для предотвращения бесконечного рендера ScrollArea)
+  const { pinnedChats, recentChats, otherChats } = React.useMemo(() => {
+    const chatListWithPeer = chats as ChatWithPeer[];
+    const pinned = chatListWithPeer.filter((c) => c.isPinned);
+    const recent = chatListWithPeer.filter((c) => !c.isPinned && c.timestamp.includes(':')).slice(0, 5);
+    const others = chatListWithPeer.filter((c) => !c.isPinned && !recent.some(r => r.id === c.id));
+    return { pinnedChats: pinned, recentChats: recent, otherChats: others };
+  }, [chats]);
 
   return (
     <div className="flex h-full flex-col bg-bg-panel">

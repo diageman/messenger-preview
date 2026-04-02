@@ -45,11 +45,11 @@ export function ChatsPage() {
     ? selectedChat.chat_members.find((m: any) => m.user_id !== profile.id && m.profiles)
     : null;
 
-  const selectedParticipants = selectedChat?.chat_members?.map((m: any) => ({
+  const selectedParticipants = (selectedChat?.chat_members ?? []).map((m: any) => ({
     id: m.user_id,
     name: m.profiles?.full_name || 'Unknown',
     avatar: m.profiles?.full_name?.[0] || '?',
-  })) || [];
+  }));
 
   const selectedAvatarData = getChatAvatarData(
     selectedChat?.type || 'direct',
@@ -61,16 +61,16 @@ export function ChatsPage() {
 
   const selectedChatName = selectedAvatarData.title;
   const selectedChatDescription = selectedPeerMember?.profiles?.role || selectedChat?.description || '';
-  const selectedChatParticipants = selectedChat?.chat_members?.map((m: any) => ({
+  const selectedChatParticipants = (selectedChat?.chat_members ?? []).map((m: any) => ({
     id: m.user_id,
     name: m.profiles?.full_name || 'Unknown',
     avatar: m.profiles?.avatar_url || m.profiles?.full_name?.[0] || '?',
     status: m.profiles?.status || 'offline',
-  })) || [];
+  }));
 
   // Transform chats for ChatList component (MEMOIZED!)
-  const chatListData = useMemo(() => (chats as any[]).map((chat: any) => {
-    const messagesArray = chat.messages || [];
+  const chatListData = useMemo(() => (chats || []).map((chat: any) => {
+    const messagesArray = chat.messages ?? [];
     const lastMessage = messagesArray.length > 0
       ? messagesArray[messagesArray.length - 1]
       : null;
@@ -84,13 +84,13 @@ export function ChatsPage() {
       : 0;
 
     let peerMember = null;
-    if (chat.type === 'direct' && chat.chat_members && profile?.id) {
+    if (chat.type === 'direct' && Array.isArray(chat.chat_members) && profile?.id) {
       peerMember = chat.chat_members.find(
         (m: any) => m.user_id !== profile.id && m.profiles
       );
     }
 
-    const participants = chat.chat_members?.map((m: any) => ({
+    const participants = (chat.chat_members ?? []).map((m: any) => ({
       id: m.user_id,
       name: m.profiles?.full_name || 'Unknown',
       avatar: m.profiles?.avatar_url || m.profiles?.full_name?.[0] || '?',
@@ -112,7 +112,7 @@ export function ChatsPage() {
       description: peerMember?.profiles?.role || chat.description || '',
       peerAvatar: peerMember?.profiles?.avatar_url || peerMember?.profiles?.full_name?.[0] || '?',
       peerStatus: peerMember?.profiles?.status || 'offline',
-      participants: chat.chat_members?.map((m: any) => ({
+      participants: (chat.chat_members ?? []).map((m: any) => ({
         id: m.user_id,
         name: m.profiles?.full_name || 'Unknown',
         avatar: m.profiles?.avatar_url || m.profiles?.full_name?.[0] || '?',

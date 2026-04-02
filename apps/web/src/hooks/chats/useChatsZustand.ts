@@ -52,10 +52,12 @@ interface UseMessagesOptions {
 }
 
 export function useMessages({ chatId }: UseMessagesOptions) {
-  // Use selector without useCallback to avoid React error #300
+  // Use stable empty array to prevent Zustand getSnapshot infinite loop
+  const EMPTY_ARRAY: any[] = React.useMemo(() => [], []);
+  
   const messages = useChatStore((state) => {
-    if (!chatId) return [];
-    return state.messages[chatId] || [];
+    if (!chatId) return EMPTY_ARRAY;
+    return state.messages[chatId] || EMPTY_ARRAY;
   });
   
   const addMessage = useChatStore((state) => state.addMessage);
