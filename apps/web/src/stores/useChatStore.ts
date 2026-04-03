@@ -306,13 +306,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ chats: updatedChats });
   },
 
-    // Move to top (recent first)
-    updatedChats.splice(chatIndex, 1);
-    updatedChats.unshift(updatedChat);
-
-    set({ chats: updatedChats });
-  },
-
   setLoading: (loading) => set({ loading }),
 
   setError: (error) => set({ error }),
