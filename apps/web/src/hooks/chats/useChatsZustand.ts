@@ -82,9 +82,15 @@ export function useMessages({ chatId }: UseMessagesOptions) {
       clearMessages('');
     } else {
       fetchMessages(chatId);
+    }
+  }, [chatId, fetchMessages, clearMessages]);
+
+  // Отдельный эффект для прочтения, чтобы не зацикливать рендер
+  React.useEffect(() => {
+    if (chatId) {
       markAsRead(chatId);
     }
-  }, [chatId, fetchMessages, clearMessages, markAsRead]);
+  }, [chatId, markAsRead]);
 
   // Send message with optimistic update
   const sendMessage = React.useCallback(async (content: string, type: string = 'text') => {

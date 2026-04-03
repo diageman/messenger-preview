@@ -281,8 +281,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   fetchChats: async () => {
     console.log('[ChatStore] fetchChats called');
     
-    // Автоматически включаем подписки при первой загрузке
-    initChatSubscriptions();
+    // Включаем подписки только если они еще не активны
+    if (supabase.getChannels().length === 0) {
+      initChatSubscriptions();
+    }
 
     // Set loading TRUE в начале
     set({ loading: true, error: null });
