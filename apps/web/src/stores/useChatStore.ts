@@ -229,9 +229,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Уведомление (только для живого трафика, не при загрузке)
+    // Уведомление (только для живого трафика и СВЕЖИХ сообщений)
     const isLive = get().isInitialized;
-    if (!isOwn && !isChatActive && isLive) {
+    const messageTime = new Date(message.created_at).getTime();
+    const now = Date.now();
+    // Если сообщению больше 15 секунд — это «эхо» прошлого, не уведомляем
+    const isFresh = (now - messageTime) < 15000; 
+
+    if (!isOwn && !isChatActive && isLive && isFresh) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
@@ -417,7 +422,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       });
 
-      set({ chats: formattedChats, loading: false });
+      set({ chats: formattedChats, loading: false, isInitialized: true });
     } catch (err: any) {
       console.error('[ChatStore] Error fetching chats:', err);
       set({ error: err, loading: false });
