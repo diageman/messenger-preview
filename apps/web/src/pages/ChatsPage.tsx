@@ -35,7 +35,8 @@ export function ChatsPage() {
 
   // Выбор первого чата при первичной загрузке
   useEffect(() => {
-    if (!loading && chats.length > 0 && !selectedChatId) {
+    // Проверяем selectedChatId === null строго, чтобы не сбрасывать выбор пользователя
+    if (!loading && chats.length > 0 && selectedChatId === null) {
       setSelectedChatId(chats[0].id);
     }
   }, [loading, chats.length, selectedChatId]);

@@ -164,8 +164,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userId = session?.user?.id;
 
     if (userId) {
-      // Только если профиль еще не загружен или принадлежит другому пользователю
-      if (!profile || profile.id !== userId) {
+      // Добавляем проверку profileLoading и profileError, чтобы не зацикливаться
+      if ((!profile && !profileLoading && !profileError) || (profile && profile.id !== userId)) {
         console.log('[Auth] Fetching profile for user:', userId);
         fetchProfile(userId);
       }

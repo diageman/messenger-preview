@@ -28,6 +28,8 @@ export interface ChatWindowProps {
   peerMember?: any;  // For direct chat peer identity
 }
 
+const EMPTY_TYPING_USERS: string[] = [];
+
 export function ChatWindow({
   chatId,
   messages = [],
@@ -42,7 +44,7 @@ export function ChatWindow({
   const [messageText, setMessageText] = React.useState('');
   const { profile } = useAuth();
   const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
-  const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || []);
+  const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || EMPTY_TYPING_USERS);
   const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
