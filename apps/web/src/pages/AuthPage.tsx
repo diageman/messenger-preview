@@ -10,7 +10,7 @@ type AuthMode = 'signin' | 'signup';
 
 export function AuthPage() {
   const navigate = useNavigate();
-  const { signIn, signUp, session } = useAuth();
+  const { signIn, signUp, session, authLoading } = useAuth();
   const [mode, setMode] = React.useState<AuthMode>('signin');
 
   const [email, setEmail] = React.useState('');
@@ -21,11 +21,12 @@ export function AuthPage() {
   const [submitted, setSubmitted] = React.useState(false); // Prevent double submit
 
   // Redirect if already authenticated
+  // Wait for authLoading to finish to avoid redirect loops
   React.useEffect(() => {
-    if (session) {
-      navigate('/');
+    if (session && !authLoading) {
+      navigate('/', { replace: true });
     }
-  }, [session, navigate]);
+  }, [session, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

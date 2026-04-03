@@ -58,14 +58,13 @@ interface UseMessagesOptions {
   chatId: string | null;
 }
 
+const STABLE_EMPTY_ARRAY: any[] = [];
+
 export function useMessages({ chatId }: UseMessagesOptions) {
-  // Use stable empty array to prevent Zustand getSnapshot infinite loop
-  const EMPTY_ARRAY: any[] = React.useMemo(() => [], []);
-  
   const messages = useChatStore(React.useCallback((state) => {
-    if (!chatId) return EMPTY_ARRAY;
-    return state.messages[chatId] || EMPTY_ARRAY;
-  }, [chatId, EMPTY_ARRAY]));
+    if (!chatId) return STABLE_EMPTY_ARRAY;
+    return state.messages[chatId] || STABLE_EMPTY_ARRAY;
+  }, [chatId]));
   
   const addMessage = useChatStore(state => state.addMessage);
   const clearMessages = useChatStore(state => state.clearMessages);

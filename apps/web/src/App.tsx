@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Routes, Route, Outlet } from 'react-router-dom';
+import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { AuthProvider, useAuth } from './hooks/auth/useAuth';
 import { Suspense } from 'react';
@@ -34,10 +34,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <PageLoading message="Восстановление сессии..." />;
   }
 
-  // No session - redirect to auth
+  // No session - redirect to auth using React Router
   if (!session) {
-    window.location.href = '/auth';
-    return null;
+    return <Navigate replace to="/auth" />;
   }
 
   // Ready - render children (they handle their own loading)

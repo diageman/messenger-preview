@@ -1,22 +1,60 @@
 {
-"mcpServers": {
+  "mcpServers": {
     "filesystem": {
-        "command": "npx",
-        "args": [
-            "-y",
-            "@modelcontextprotocol/server-filesystem",
-            "C:\\Projects\\Messenger"
-        ]
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@latest",
+        "C:\\Projects\\Messenger"
+      ]
     },
     "notion": {
-        "command": "npx",
-        "args": [
-            "-y",
-            "@suekou/mcp-notion-server"
-        ],
-        "env": {
-            "NOTION_API_TOKEN": "token"
-        }
+      "command": "npx",
+      "args": [
+        "-y",
+        "@notionhq/notion-mcp-server@latest"
+      ],
+      "env": {
+        "NOTION_TOKEN": "ntn_ВАШ_NOTION_TOKEN"
+      }
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@brave/brave-search-mcp-server@latest",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "ВАШ_BRAVE_API_KEY"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer@latest"
+      ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking@latest"
+      ]
+    },
+    "desktop-commander": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@wonderwhy-er/desktop-commander@latest"
+      ]
+    },
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp"
     }
-}
+  }
 }
