@@ -92,6 +92,7 @@ interface ChatState {
   error: Error | null;
   typingUsers: Record<string, string[]>; // chatId -> userNames[]
   isInitialized: boolean;
+  isDataLoaded: boolean; // Флаг завершения fetchChats
   appStartTime: number;
   initialMessageIds: Set<string>; // ID сообщений, загруженных при старте
   selectedChatId: string | null;
@@ -126,6 +127,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   typingUsers: {},
   isInitialized: false,
+  isDataLoaded: false,
   appStartTime: Date.now(),
   initialMessageIds: new Set(),
   selectedChatId: null,
@@ -135,14 +137,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setChats: (chats) => set({ chats }),
 
   setSelectedChatId: (chatId) => {
+    const { chats } = get();
     set({ selectedChatId: chatId });
-    // При выборе чата — обнуляем unread
+
     if (chatId) {
-      const { chats } = get();
+      // 1. Локальное обновление для мгновенного отклика UI
       const updated = chats.map((c) =>
         c.id === chatId ? { ...c, unreadCount: 0 } : c
       );
       set({ chats: updated });
+
+      // 2. Отправка в БД самого свежего времени сообщения из этого чата
+      const currentChat = chats.find(c => c.id === chatId);
+      const lastMsgAt = currentChat?.lastMessageAt || new Date().toISOString();
+      void get().markChatRead(chatId, lastMsgAt);
     }
   },
 
@@ -233,14 +241,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Уведомление: только для чужих, в неактивном чате и если сообщения НЕ БЫЛО в базе при старте
-    const { isInitialized, appStartTime, initialMessageIds } = get();
-    const now = Date.now();
+    // Уведомление: только если сообщение создано ПОСЛЕ входа пользователя на страницу
+    const { isDataLoaded, appStartTime, initialMessageIds } = get();
+    const messageTime = new Date(message.created_at).getTime();
     
-    const isAfterGracePeriod = (now - appStartTime) > 2000; 
+    // Сообщение должно быть создано строго после запуска этой сессии
+    const isCreatedLive = messageTime > appStartTime;
     const isTrulyNew = !initialMessageIds.has(message.id);
 
-    if (!isOwn && !isChatActive && isInitialized && isAfterGracePeriod && isTrulyNew) {
+    if (!isOwn && !isChatActive && isDataLoaded && isCreatedLive && isTrulyNew) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
@@ -317,7 +326,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // Пишем в БД
     try {
-      await supabase.from('chat_reads').upsert(
+      const { error } = await supabase.from('chat_reads').upsert(
         {
           chat_id: chatId,
           user_id: currentUserId,
@@ -325,8 +334,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         { onConflict: 'chat_id,user_id' }
       );
+      
+      if (error) {
+        console.error('[ChatStore] markChatRead DB Error:', error.message, error.details);
+      } else {
+        console.log(`[ChatStore] Saved read status for ${chatId} at ${lastReadAt}`);
+      }
     } catch (err) {
-      console.error('[ChatStore] markChatRead error:', err);
+      console.error('[ChatStore] markChatRead Exception:', err);
     }
   },
 
@@ -436,6 +451,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chats: formattedChats, 
         loading: false, 
         isInitialized: true,
+        isDataLoaded: true, // Теперь уведомления разрешены
         initialMessageIds: allInitialIds
       });
     } catch (err: any) {
