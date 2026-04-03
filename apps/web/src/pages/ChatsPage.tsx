@@ -4,10 +4,9 @@ import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
 import { useMessages, useAuth, useChats } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
-import { useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
-import { useChatStore } from '@/stores/useChatStore';
-import { useShallow } from 'zustand/react/shallow';
+import { useChatStore, getTotalUnread } from '@/stores/useChatStore';
 
 export function ChatsPage() {
   // =====================================================
@@ -17,10 +16,10 @@ export function ChatsPage() {
   // Подключаем основной хук чатов, чтобы инициировать загрузку данных
   useChats(); 
   
-  const chats = useChatStore(useShallow((state) => state.chats));
+  const chats = useChatStore((state) => state.chats);
   const loading = useChatStore((state) => state.loading);
-  const selectedChatId = useChatStore((state) => state.selectedChatId);
-  const setSelectedChatId = useChatStore((state) => state.setSelectedChatId);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const setSelectedChatIdStore = useChatStore((state) => state.setSelectedChatId);
   const { messages = [], sendMessage } = useMessages({ chatId: selectedChatId }) as any;
   const chatListResizer = useResizable({
     key: 'messenger_chatlist_width',
@@ -30,20 +29,23 @@ export function ChatsPage() {
     collapsedWidth: 72,
   });
 
+  // Total unread — из ОДНОГО источника (store)
+  const unreadTotal = getTotalUnread();
+
   // =====================================================
   // 2. EFFECTS ONLY (no state updates in render)
   // =====================================================
 
   // Выбор первого чата при первичной загрузке
   useEffect(() => {
-    // Выбираем только если чат существует и имеет нормальный UUID
     if (!loading && chats.length > 0 && selectedChatId === null) {
       const firstChat = chats[0];
       if (firstChat?.id && firstChat.id.length > 20) {
         setSelectedChatId(firstChat.id);
+        setSelectedChatIdStore(firstChat.id);
       }
     }
-  }, [loading, chats.length, selectedChatId]);
+  }, [loading, chats.length]);
 
   // =====================================================
   // 3. COMPUTED VALUES (pure, no side effects)
@@ -84,8 +86,8 @@ export function ChatsPage() {
       ? messagesArray[messagesArray.length - 1]
       : null;
 
-    // Доверяем значению из стора, не пересчитываем по базе
-    const unreadCount = chat.unreadCount || 0;
+    // Берём unreadCount ИЗ STORE — не пересчитываем!
+    const unreadCount = typeof chat.unreadCount === 'number' ? chat.unreadCount : 0;
 
     let peerMember = null;
     if (chat.type === 'direct' && Array.isArray(chat.chat_members) && profile?.id) {
@@ -130,9 +132,7 @@ export function ChatsPage() {
       isPinned: false,
       isImportant: false,
     };
-  }), [chats, profile?.id]);  // ← Пересоздавать только когда chats или profile изменились
-
-  const unreadTotal = chatListData.reduce((sum, chat) => sum + chat.unreadCount, 0);
+  }), [chats, profile?.id]);
 
   // =====================================================
   // 4. EVENT HANDLERS (state updates OK here)
@@ -143,6 +143,7 @@ export function ChatsPage() {
       return;
     }
     setSelectedChatId(chatId);
+    setSelectedChatIdStore(chatId);
   };
 
   const handleSendMessage = async (content: string) => {

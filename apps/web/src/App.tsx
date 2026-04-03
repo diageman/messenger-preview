@@ -2,7 +2,8 @@ import * as React from 'react';
 import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { AuthProvider, useAuth } from './hooks/auth/useAuth';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
+import { useAuthStore } from './store/authStore';
 
 // Lazy load pages
 const ChatsPage = React.lazy(async () => ({ default: (await import('./pages/ChatsPage')).ChatsPage }));
@@ -23,6 +24,20 @@ function PageLoading({ message = 'Загрузка...' }: { message?: string }) 
       </div>
     </div>
   );
+}
+
+/**
+ * Инициализирует auth store ОДИН раз при старте приложения.
+ * supabase.auth.getUser() — авторитетный источник identity.
+ */
+function AppBootstrap() {
+  const initAuth = useAuthStore((s) => s.initAuth);
+
+  useEffect(() => {
+    void initAuth();
+  }, [initAuth]);
+
+  return null;
 }
 
 // Protected route wrapper
@@ -90,6 +105,7 @@ function AppContent() {
 function App() {
   return (
     <Suspense fallback={<PageLoading />}>
+      <AppBootstrap />
       <AuthProvider>
         <AppContent />
       </AuthProvider>

@@ -1,52 +1,48 @@
 /**
- * Hooks for chats and messages - Zustand-based
+ * Hooks for chats and messages — Zustand-based
+ * Используют authStore для currentUserId (НИКАКИХ supabase.auth.getUser())
  */
 
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
-import { useChatStore, initChatSubscriptions } from '@/stores/useChatStore';
+import { useChatStore, getTotalUnread } from '@/stores/useChatStore';
+import { useAuthStore } from '@/store/authStore';
 
 // =====================================================
-// USE CHATS
+// USE CHATS — инициализирует загрузку и realtime
 // =====================================================
 
 export function useChats() {
-  const { profile } = useAuth();
-  
-  // Используем точечные селекторы для стабильности ссылок
-  const chats = useChatStore(state => state.chats);
-  const loading = useChatStore(state => state.loading);
-  const error = useChatStore(state => state.error);
-  const fetchChats = useChatStore(state => state.fetchChats);
+  const currentUserId = useAuthStore((s) => s.currentUserId);
+  const authReady = useAuthStore((s) => s.authReady);
+  const chats = useChatStore((s) => s.chats);
+  const loading = useChatStore((s) => s.loading);
+  const error = useChatStore((s) => s.error);
+  const fetchChats = useChatStore((s) => s.fetchChats);
+  const initRealtime = useChatStore((s) => s.initRealtime);
 
-  // Debug log
-  console.log('[useChats] Profile:', profile?.id, 'Loading:', loading);
-
-  // Initialize realtime subscriptions AFTER profile loads
+  // Инициализируем realtime один раз при старте
   React.useEffect(() => {
-    if (profile?.id) {
-      console.log('[useChats] Initializing subscriptions for user:', profile.id);
-      initChatSubscriptions();
+    if (authReady && currentUserId) {
+      initRealtime();
     }
-  }, [profile?.id]);
+  }, [authReady, currentUserId, initRealtime]);
 
-  // Fetch chats AFTER profile loads
+  // Загружаем чаты когда пользователь готов
   React.useEffect(() => {
-    if (profile?.id) {
-      console.log('[useChats] Fetching chats for user:', profile.id);
+    if (authReady && currentUserId) {
       fetchChats();
-    } else {
-      // Если профиль пропал (logout), ставим loading в false, чтобы не крутился вечно
-      useChatStore.setState({ loading: false });
+    } else if (authReady && !currentUserId) {
+      useChatStore.setState({ loading: false, chats: [] });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id]); // fetchChats исключён - это стабильная ссылка из Zustand store
+  }, [authReady, currentUserId, fetchChats]);
 
   return {
     chats,
     loading,
     error,
     refresh: fetchChats,
+    totalUnread: getTotalUnread(),
   };
 }
 
@@ -61,92 +57,81 @@ interface UseMessagesOptions {
 const STABLE_EMPTY_ARRAY: any[] = [];
 
 export function useMessages({ chatId }: UseMessagesOptions) {
-  const messages = useChatStore(React.useCallback((state) => {
-    if (!chatId) return STABLE_EMPTY_ARRAY;
-    return state.messages[chatId] || STABLE_EMPTY_ARRAY;
-  }, [chatId]));
-  
-  const addMessage = useChatStore(state => state.addMessage);
-  const clearMessages = useChatStore(state => state.clearMessages);
-  const fetchMessages = useChatStore(state => state.fetchMessages);
+  const currentUserId = useAuthStore((s) => s.currentUserId);
+  const messages = useChatStore(
+    React.useCallback(
+      (state) => {
+        if (!chatId) return STABLE_EMPTY_ARRAY;
+        return state.messages[chatId] || STABLE_EMPTY_ARRAY;
+      },
+      [chatId]
+    )
+  );
+  const clearMessages = useChatStore((s) => s.clearMessages);
+  const fetchMessages = useChatStore((s) => s.fetchMessages);
 
-  const markAsRead = React.useCallback(async (chatId: string) => {
-    // Блокируем пустые или некорректные ID
-    if (!chatId || chatId.length < 20) return;
+  const markAsRead = React.useCallback(
+    async (chatId: string) => {
+      if (!chatId || chatId.length < 20) return;
+      await useChatStore.getState().markChatRead(chatId, new Date().toISOString());
+    },
+    []
+  );
 
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user) return;
-
-    await supabase.from('chat_reads').upsert({
-      chat_id: chatId,
-      user_id: auth.user.id,
-      last_read_at: new Date().toISOString()
-    });
-  }, []);
-
-  // Fetch messages and mark read when chatId changes
+  // Fetch messages when chatId changes
   React.useEffect(() => {
-    // Если chatId нет или он некорректный (пустая строка) — просто очищаем и выходим
     if (!chatId || String(chatId).length < 30) {
       if (chatId === '') clearMessages('');
       return;
     }
-    
-    console.log('[useMessages] Requesting messages for:', chatId);
     fetchMessages(chatId);
-  }, [chatId, fetchMessages, clearMessages]); // fetchMessages и clearMessages исключены - стабильные ссылки из Zustand store
+  }, [chatId, fetchMessages, clearMessages]);
 
-  // Отдельный эффект для прочтения, чтобы не зацикливать рендер
+  // Mark as read when chatId changes
   React.useEffect(() => {
     if (chatId) {
       markAsRead(chatId);
     }
   }, [chatId, markAsRead]);
 
-  // Send message with optimistic update
-  const sendMessage = React.useCallback(async (content: string, type: string = 'text') => {
-    if (!chatId || !content.trim()) return null;
+  // Send message
+  const sendMessage = React.useCallback(
+    async (content: string, type: string = 'text') => {
+      if (!chatId || !content.trim() || !currentUserId) return null;
 
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData?.user?.id;
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .insert({
+            chat_id: chatId,
+            sender_id: currentUserId,
+            content,
+            message_type: type,
+          })
+          .select()
+          .single();
 
-      if (!userId) {
-        console.error('[sendMessage] No user authenticated');
+        if (error) {
+          console.error('[sendMessage] Supabase error:', error);
+          alert(`Ошибка отправки сообщения: ${error.message}`);
+          throw error;
+        }
+
+        if (data) {
+          useChatStore.getState().addMessage({
+            ...data,
+            isOwn: true,
+          });
+        }
+
+        return data;
+      } catch (err: any) {
+        console.error('Error sending message:', err);
         return null;
       }
-
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          chat_id: chatId,
-          sender_id: userId,
-          content,
-          message_type: type,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[sendMessage] Supabase error:', error);
-        alert(`Ошибка отправки сообщения: ${error.message}`);
-        throw error;
-      }
-
-      // Optimistic: add to global store immediately
-      if (data) {
-        addMessage({
-          ...data,
-          isOwn: true,
-        });
-      }
-
-      return data;
-    } catch (err: any) {
-      console.error('Error sending message:', err);
-      return null;
-    }
-  }, [chatId, addMessage]);
+    },
+    [chatId, currentUserId]
+  );
 
   return {
     messages,
@@ -166,39 +151,40 @@ import { useAuth } from '@/hooks/auth/useAuth';
 export function useChatActions() {
   const { profile } = useAuth();
 
-  // Create direct chat
-  const createDirectChat = React.useCallback(async (otherUserId: string) => {
-    if (!profile) {
-      console.error('[createDirectChat] No profile');
-      return null;
-    }
-
-    try {
-      const { data, error } = await supabase.rpc('create_direct_chat', {
-        p_org_id: profile.organization_id,
-        p_user1_id: profile.id,
-        p_user2_id: otherUserId,
-      });
-
-      if (error) {
-        console.error('[createDirectChat] RPC error:', error);
-        alert(`Ошибка создания чата: ${error.message}`);
-        throw error;
+  const createDirectChat = React.useCallback(
+    async (otherUserId: string) => {
+      if (!profile) {
+        console.error('[createDirectChat] No profile');
+        return null;
       }
 
-      if (!data) {
-        alert('Чат не был создан: база данных вернула пустой результат.');
-      } else {
-        // Успешно создали — принудительно обновляем список чатов в интерфейсе!
-        useChatStore.getState().fetchChats();
-      }
+      try {
+        const { data, error } = await supabase.rpc('create_direct_chat', {
+          p_org_id: profile.organization_id,
+          p_user1_id: profile.id,
+          p_user2_id: otherUserId,
+        });
 
-      return data;
-    } catch (err: any) {
-      console.error('Error creating direct chat:', err);
-      return null;
-    }
-  }, [profile]);
+        if (error) {
+          console.error('[createDirectChat] RPC error:', error);
+          alert(`Ошибка создания чата: ${error.message}`);
+          throw error;
+        }
+
+        if (!data) {
+          alert('Чат не был создан: база данных вернула пустой результат.');
+        } else {
+          useChatStore.getState().fetchChats();
+        }
+
+        return data;
+      } catch (err: any) {
+        console.error('Error creating direct chat:', err);
+        return null;
+      }
+    },
+    [profile]
+  );
 
   return {
     createDirectChat,
