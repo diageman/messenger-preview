@@ -32,12 +32,13 @@ export function ChatsPage() {
   // 2. EFFECTS ONLY (no state updates in render)
   // =====================================================
 
-  // Auto-select first chat when chats load (safe - only when length changes)
+  // Выбираем чат только один раз при начальной загрузке
   useEffect(() => {
-    if (!loading && chats.length > 0 && selectedChatId === null) {
+    if (!loading && chats.length > 0 && !selectedChatId) {
       setSelectedChatId(chats[0].id);
     }
-  }, [loading, chats.length]);  // ← УБРАЛ selectedChatId из deps!
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]); // Реагируем только на завершение загрузки  // ← УБРАЛ selectedChatId из deps!
 
   // =====================================================
   // 3. COMPUTED VALUES (pure, no side effects)

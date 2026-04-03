@@ -75,6 +75,7 @@ interface ChatState {
   loading: boolean;
   error: Error | null;
   typingUsers: Record<string, string[]>; // chatId -> userNames[]
+  isInitialized: boolean;
 
   // Actions
   setChats: (chats: Chat[]) => void;
@@ -104,6 +105,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loading: true,
   error: null,
   typingUsers: {},
+  isInitialized: false,
 
   // Actions
   setChats: (chats) => set({ chats }),
@@ -279,12 +281,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   fetchChats: async () => {
-    console.log('[ChatStore] fetchChats called');
+    // Предотвращаем повторные вызовы во время загрузки
+    if (get().loading && get().chats.length > 0) return;
     
-    // Включаем подписки только если они еще не активны
-    if (supabase.getChannels().length === 0) {
-      initChatSubscriptions();
-    }
+    console.log('[ChatStore] fetchChats called');
 
     // Set loading TRUE в начале
     set({ loading: true, error: null });
@@ -391,12 +391,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 let isSubscribed = false;
 
 export const initChatSubscriptions = () => {
-  if (isSubscribed) return;
+  const state = useChatStore.getState();
+  if (state.isInitialized) return;
+
+  useChatStore.setState({ isInitialized: true });
   
-  const store = useChatStore.getState();
-  store.subscribeToChats();
-  store.subscribeToMessages();
+  state.subscribeToChats();
+  state.subscribeToMessages();
   
-  isSubscribed = true;
   console.log('[ChatStore] Realtime subscriptions initialized');
 };
