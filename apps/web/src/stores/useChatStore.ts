@@ -92,6 +92,7 @@ interface ChatState {
   error: Error | null;
   typingUsers: Record<string, string[]>; // chatId -> userNames[]
   isInitialized: boolean;
+  appStartTime: number; // Время старта приложения
   selectedChatId: string | null;
 
   // Actions
@@ -124,6 +125,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   typingUsers: {},
   isInitialized: false,
+  appStartTime: Date.now(),
   selectedChatId: null,
 
   // ====== ACTIONS ======
@@ -229,14 +231,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Уведомление (только для живого трафика и СВЕЖИХ сообщений)
-    const isLive = get().isInitialized;
-    const messageTime = new Date(message.created_at).getTime();
+    // Уведомление (Context7: блокировка на старте + свежесть)
+    const { isInitialized, appStartTime } = get();
     const now = Date.now();
-    // Если сообщению больше 15 секунд — это «эхо» прошлого, не уведомляем
+    const messageTime = new Date(message.created_at).getTime();
+    
+    const isAfterGracePeriod = (now - appStartTime) > 5000; // Прошло 5 сек со старта
     const isFresh = (now - messageTime) < 15000; 
 
-    if (!isOwn && !isChatActive && isLive && isFresh) {
+    if (!isOwn && !isChatActive && isInitialized && isAfterGracePeriod && isFresh) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
