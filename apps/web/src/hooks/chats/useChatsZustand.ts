@@ -71,8 +71,11 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   const fetchMessages = useChatStore(state => state.fetchMessages);
 
   const markAsRead = React.useCallback(async (chatId: string) => {
+    // Блокируем пустые или некорректные ID
+    if (!chatId || chatId.length < 20) return;
+
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return;
+    if (!auth?.user) return;
 
     await supabase.from('chat_reads').upsert({
       chat_id: chatId,
