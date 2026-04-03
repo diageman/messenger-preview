@@ -288,11 +288,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (chatIndex === -1) return;
 
     const updatedChats = [...chats];
+    const oldChat = updatedChats[chatIndex];
+    
+    // Создаем обновленный объект чата
     const updatedChat = {
-      ...updatedChats[chatIndex],
+      ...oldChat,
+      // Важно: обновляем массив сообщений внутри чата, чтобы сработал пересчет unreadCount в UI
+      messages: [...(oldChat.messages || []), message],
       lastMessage: message.content || '',
       updated_at: message.created_at,
     };
+
+    // Перемещаем чат в самое начало списка (сортировка по новизне)
+    updatedChats.splice(chatIndex, 1);
+    updatedChats.unshift(updatedChat);
+
+    set({ chats: updatedChats });
+  },
 
     // Move to top (recent first)
     updatedChats.splice(chatIndex, 1);
@@ -361,13 +373,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
-      }, (payload) => {
+      }, async (payload) => {
         const newMessage = payload.new as any;
-        console.log('[Realtime] New message:', newMessage);
+        console.log('[Realtime] New message arrived:', newMessage.id);
         
-        // Получаем ID из текущей сессии (синхронно)
-        const currentUserId = (supabase as any).auth.session?.()?.user?.id || 
-                            (supabase.auth as any).currentSession?.user?.id;
+        // Получаем свежий ID пользователя
+        const { data } = await supabase.auth.getUser();
+        const currentUserId = data.user?.id;
         
         const messageWithSender = {
           ...newMessage,
