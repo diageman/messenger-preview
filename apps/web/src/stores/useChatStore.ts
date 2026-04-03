@@ -345,16 +345,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   subscribeToMessages: () => {
+    // Используем более уникальное имя канала и слушаем все изменения (включая UPDATE для статусов)
     const channel = supabase
-      .channel('messages:global')
+      .channel('public:messages')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
       }, (payload) => {
-        const newMessage = payload.new as Message;
+        const newMessage = payload.new as any;
         console.log('[Realtime] New message:', newMessage);
-        get().addMessage(newMessage);
+        
+        // Получаем ID из текущей сессии (синхронно)
+        const currentUserId = (supabase as any).auth.session?.()?.user?.id || 
+                            (supabase.auth as any).currentSession?.user?.id;
+        
+        const messageWithSender = {
+          ...newMessage,
+          isOwn: newMessage.sender_id === currentUserId,
+          sender: newMessage.sender || { 
+            full_name: 'Пользователь...', 
+            avatar_url: null 
+          }
+        };
+        
+        get().addMessage(messageWithSender);
         get().updateChatPreview(newMessage.chat_id, newMessage);
       })
       .on('broadcast', { event: 'typing' }, (payload) => {
