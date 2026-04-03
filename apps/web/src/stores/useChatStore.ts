@@ -231,15 +231,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Уведомление (Context7: блокировка на старте + свежесть)
+    // Уведомление: только для чужих, в неактивном чате и ПОСЛЕ загрузки старых данных
     const { isInitialized, appStartTime } = get();
     const now = Date.now();
     const messageTime = new Date(message.created_at).getTime();
     
-    const isAfterGracePeriod = (now - appStartTime) > 5000; // Прошло 5 сек со старта
-    const isFresh = (now - messageTime) < 15000; 
+    // 1. Прошло минимум 2 секунды с запуска (защита от пачки сообщений при коннекте)
+    const isAfterGracePeriod = (now - appStartTime) > 2000; 
+    // 2. Сообщение создано ПОСЛЕ того, как приложение реально запустилось (важно для refresh)
+    const isCreatedAfterLaunch = messageTime > appStartTime;
 
-    if (!isOwn && !isChatActive && isInitialized && isAfterGracePeriod && isFresh) {
+    if (!isOwn && !isChatActive && isInitialized && isAfterGracePeriod && isCreatedAfterLaunch) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
