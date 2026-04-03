@@ -186,9 +186,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         table: 'messages',
       }, (payload) => {
         const newMessage = payload.new as Message;
-        
-        // Add to global messages store
+        console.log('[Realtime] New message:', newMessage);
         get().addMessage(newMessage);
+        get().updateChatPreview(newMessage.chat_id, newMessage);
       })
       .subscribe();
 
@@ -243,6 +243,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   fetchChats: async () => {
     console.log('[ChatStore] fetchChats called');
     
+    // Автоматически включаем подписки при первой загрузке
+    initChatSubscriptions();
+
     // Set loading TRUE в начале
     set({ loading: true, error: null });
 
