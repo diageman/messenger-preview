@@ -142,6 +142,10 @@ export function ChatsPage() {
   // 4. EVENT HANDLERS (state updates OK here)
   // =====================================================
   const handleSelectChat = (chatId: string) => {
+    if (!chatId || chatId.length < 30) {
+      console.warn('⚠️ [ChatsPage] Cannot select chat: invalid ID', chatId);
+      return;
+    }
     setSelectedChatId(chatId);
   };
 

@@ -204,9 +204,11 @@ async function fetchMessagesImpl(set: any, chatId: string) {
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id;
     
-    // МАКСИМАЛЬНАЯ ЗАЩИТА: Блокируем всё, что не похоже на UUID
+    // 🚨 ЛОГ ДЛЯ ПРОВЕРКИ ДЕПЛОЯ
+    console.log('🚀 [ChatStore] Attempting to fetch messages for:', chatId);
+
     if (!chatId || typeof chatId !== 'string' || chatId.length < 30) {
-      console.log('[ChatStore] fetchMessages CANCELLED: invalid chatId format:', `"${chatId}"`);
+      console.error('❌ [ChatStore] BLOCKED! Invalid UUID format:', `"${chatId}"`);
       return;
     }
 
