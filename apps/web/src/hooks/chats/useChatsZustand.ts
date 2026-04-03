@@ -65,14 +65,26 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   const clearMessages = useChatStore((state) => state.clearMessages);
   const fetchMessages = useChatStore((state) => state.fetchMessages);
 
-  // Fetch messages when chatId changes
+  const markAsRead = React.useCallback(async (chatId: string) => {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return;
+
+    await supabase.from('chat_reads').upsert({
+      chat_id: chatId,
+      user_id: auth.user.id,
+      last_read_at: new Date().toISOString()
+    });
+  }, []);
+
+  // Fetch messages and mark read when chatId changes
   React.useEffect(() => {
     if (!chatId) {
       clearMessages('');
     } else {
       fetchMessages(chatId);
+      markAsRead(chatId);
     }
-  }, [chatId, fetchMessages, clearMessages]);
+  }, [chatId, fetchMessages, clearMessages, markAsRead]);
 
   // Send message with optimistic update
   const sendMessage = React.useCallback(async (content: string, type: string = 'text') => {

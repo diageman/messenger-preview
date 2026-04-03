@@ -6,7 +6,9 @@ import { ScrollArea } from '@messenger/ui';
 import { motion } from 'framer-motion';
 import { Send, Paperclip, Smile, MessageSquare } from 'lucide-react';
 import type { Message } from '../types/chat';
-import { getChatAvatarData } from '@/lib/chatAvatar';
+import { getChatAvatarData } from '../lib/chatAvatar';
+import { useChatStore } from '../stores/useChatStore';
+import { useAuth } from '../hooks/chats/useChatsZustand';
 
 // ===== MAIN COMPONENT =====
 export interface ChatWindowProps {
@@ -38,6 +40,9 @@ export function ChatWindow({
   peerMember,
 }: ChatWindowProps) {
   const [messageText, setMessageText] = React.useState('');
+  const { profile } = useAuth();
+  const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
+  const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
@@ -73,9 +78,21 @@ export function ChatWindow({
     if (messageText.trim() && onSendMessage) {
       onSendMessage(messageText.trim());
       setMessageText('');
+      lastTypingTime.current = 0;
       textareaRef.current?.focus();
     }
   }, [messageText, onSendMessage]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setMessageText(value);
+
+    const now = Date.now();
+    if (chatId && profile?.full_name && now - lastTypingTime.current > 2000) {
+      sendTypingStatus(chatId, profile.full_name);
+      lastTypingTime.current = now;
+    }
+  };
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -232,7 +249,7 @@ export function ChatWindow({
                 ref={textareaRef}
                 placeholder="Напишите сообщение..."
                 value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={1}
                 className="message-input w-full resize-none"

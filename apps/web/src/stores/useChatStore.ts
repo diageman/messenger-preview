@@ -74,6 +74,7 @@ interface ChatState {
   messages: Record<string, Message[]>; // chatId -> messages
   loading: boolean;
   error: Error | null;
+  typingUsers: Record<string, string[]>; // chatId -> userNames[]
 
   // Actions
   setChats: (chats: Chat[]) => void;
@@ -101,6 +102,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: {},
   loading: true,
   error: null,
+  typingUsers: {},
 
   // Actions
   setChats: (chats) => set({ chats }),
@@ -175,6 +177,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return () => {
       supabase.removeChannel(channel);
     };
+  },
+
+  sendTypingStatus: (chatId: string, userName: string) => {
+    const channel = supabase.channel(`typing:${chatId}`);
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { userName },
+        });
+      }
+    });
   },
 
   subscribeToMessages: () => {
