@@ -85,6 +85,7 @@ interface ChatState {
   clearMessages: (chatId: string) => void;
   fetchChats: () => Promise<void>;
   fetchMessages: (chatId: string) => Promise<void>;
+  sendTypingStatus: (chatId: string, userName: string) => void;
 
   // Realtime subscription management
   subscribeToChats: () => void;
