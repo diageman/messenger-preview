@@ -203,7 +203,9 @@ async function fetchMessagesImpl(set: any, chatId: string) {
   try {
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id;
-    if (!userId || !chatId) return;
+    
+    // Защита: если chatId пустой или не похож на UUID, не делаем запрос
+    if (!userId || !chatId || chatId.length < 30) return;
 
     const { data, error } = await supabase
       .from('messages')

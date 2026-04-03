@@ -24,7 +24,10 @@ export function useContacts() {
   const [error, setError] = React.useState<Error | null>(null);
 
   const fetchContacts = React.useCallback(async (isRefresh = false) => {
-    if (!profile) return;
+    // Защита: не делаем запрос, если профиль не загружен или ID организации пустой
+    if (!profile?.organization_id || profile.organization_id.length < 30) {
+      return;
+    }
 
     // Don't set loading on refresh, keep old contacts visible
     if (!isRefresh) {

@@ -83,7 +83,7 @@ export function useMessages({ chatId }: UseMessagesOptions) {
 
   // Fetch messages and mark read when chatId changes
   React.useEffect(() => {
-    if (!chatId) {
+    if (!chatId || chatId.length < 30) {
       clearMessages('');
     } else {
       fetchMessages(chatId);
