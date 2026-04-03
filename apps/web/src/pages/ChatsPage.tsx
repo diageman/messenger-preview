@@ -7,6 +7,7 @@ import { useResizable } from '../hooks/useResizable';
 import { useState, useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 import { useChatStore } from '@/stores/useChatStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export function ChatsPage() {
   // =====================================================
@@ -16,7 +17,7 @@ export function ChatsPage() {
   // Подключаем основной хук чатов, чтобы инициировать загрузку данных
   useChats(); 
   
-  const chats = useChatStore((state) => state.chats);  // ← Селектор вместо деструктуризации
+  const chats = useChatStore(useShallow((state) => state.chats));
   const loading = useChatStore((state) => state.loading);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const { messages = [], sendMessage } = useMessages({ chatId: selectedChatId }) as any;
@@ -32,12 +33,12 @@ export function ChatsPage() {
   // 2. EFFECTS ONLY (no state updates in render)
   // =====================================================
 
-  // Жесткий выбор первого чата только если ничего не выбрано
+  // Выбор первого чата при первичной загрузке
   useEffect(() => {
-    if (chats.length > 0 && !selectedChatId) {
+    if (!loading && chats.length > 0 && !selectedChatId) {
       setSelectedChatId(chats[0].id);
     }
-  }, [chats.length]); // Следим ТОЛЬКО за появлением списка чатов
+  }, [loading, chats.length, selectedChatId]);
 
   // =====================================================
   // 3. COMPUTED VALUES (pure, no side effects)

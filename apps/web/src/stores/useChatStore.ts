@@ -171,28 +171,26 @@ async function fetchChatsImpl(set: any, get: any) {
 
     console.log('[ChatStore] Fetched chats:', data.length);
 
-    // Map DB rows to UI format to prevent crashes in ChatList
     const formattedChats = (data || []).map(chat => {
       const messages = chat.messages || [];
       const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-
       const dateString = lastMsg ? lastMsg.created_at : chat.updated_at;
-      const date = new Date(dateString || Date.now());
-      const now = new Date();
-      const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-      const timestamp = isToday
-        ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
-
+      
       return {
         ...chat,
         lastMessage: lastMsg ? lastMsg.content : (chat.description || 'Нет сообщений'),
-        timestamp,
+        timestamp: dateString, // Храним сырую дату, форматируем в компоненте для стабильности
         unreadCount: 0
       };
     });
 
-    set({ chats: formattedChats });
+    // Проверка на глубокое равенство перед установкой (простой JSON check для производительности)
+    const currentChatsJson = JSON.stringify(get().chats);
+    const newChatsJson = JSON.stringify(formattedChats);
+
+    if (currentChatsJson !== newChatsJson) {
+      set({ chats: formattedChats });
+    }
   } catch (err: any) {
     console.error('[ChatStore] Error fetching chats:', err);
     set({ error: err });
