@@ -27,19 +27,18 @@ function PageLoading({ message = 'Загрузка...' }: { message?: string }) 
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, authLoading } = useAuth();
+  const { session, authLoading, profileLoading } = useAuth();
 
-  // Still restoring session
-  if (authLoading) {
-    return <PageLoading message="Восстановление сессии..." />;
+  // Ждем, пока восстановится сессия ИЛИ пока грузится профиль
+  // Это предотвращает редирект на /auth в моменты промежуточных состояний
+  if (authLoading || (session && profileLoading)) {
+    return <PageLoading message="Загрузка профиля..." />;
   }
 
-  // No session - redirect to auth using React Router
   if (!session) {
     return <Navigate replace to="/auth" />;
   }
 
-  // Ready - render children (they handle their own loading)
   return <>{children}</>;
 }
 

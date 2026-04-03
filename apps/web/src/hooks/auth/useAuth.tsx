@@ -164,14 +164,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userId = session?.user?.id;
 
     if (userId) {
-      console.log('[Auth] Fetching profile for user:', userId);
-      fetchProfile(userId);
+      // Только если профиль еще не загружен или принадлежит другому пользователю
+      if (!profile || profile.id !== userId) {
+        console.log('[Auth] Fetching profile for user:', userId);
+        fetchProfile(userId);
+      }
     } else {
-      setProfile(null);
-      setProfileLoading(false);
-      setProfileError(null);
+      // Только если профиль еще не очищен
+      if (profile !== null) {
+        setProfile(null);
+        setProfileLoading(false);
+        setProfileError(null);
+      }
     }
-  }, [session, fetchProfile]);
+  }, [session, fetchProfile, profile]);
 
   // =====================================================
   // SIGN IN
