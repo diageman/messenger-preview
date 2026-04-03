@@ -214,7 +214,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     updatedChats.unshift(updatedChat);
 
     // 6. Обновляем и чаты, и сообщения одним махом
-    const chatMessages = allMessages[message.chat_id] || [];
     const nextMessages = chatMessages.some(m => m.id === message.id) 
       ? allMessages 
       : { ...allMessages, [message.chat_id]: [...chatMessages, message] };
@@ -224,20 +223,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Добавляем в messages
-    const { messages } = get();
-    const chatMessages = messages[message.chat_id] || [];
-    if (!chatMessages.some((m) => m.id === message.id)) {
-      set({
-        messages: {
-          ...messages,
-          [message.chat_id]: [...chatMessages, message],
-        },
-      });
-    }
-
     // Уведомление
-    if (!own && !isOpenChat) {
+    if (!isOwn && !isChatActive) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
@@ -262,8 +249,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const updated = [...chats];
     const oldChat = updated[idx];
 
-    // Двигаем чат вверх, сохраняя все поля (включая unreadCount)
-    const updatedChat = {
+    const updatedChatData = {
       ...oldChat,
       lastMessageId: message.id,
       lastMessageText: message.content,
@@ -283,7 +269,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     updated.splice(idx, 1);
-    updated.unshift(chat);
+    updated.unshift(updatedChat);
     set({ chats: updated });
   },
 

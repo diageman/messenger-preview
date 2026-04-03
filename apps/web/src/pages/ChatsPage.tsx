@@ -86,9 +86,6 @@ export function ChatsPage() {
       ? messagesArray[messagesArray.length - 1]
       : null;
 
-    // Берём unreadCount ИЗ STORE — не пересчитываем!
-    const unreadCount = typeof chat.unreadCount === 'number' ? chat.unreadCount : 0;
-
     let peerMember = null;
     if (chat.type === 'direct' && Array.isArray(chat.chat_members) && profile?.id) {
       peerMember = chat.chat_members.find(
