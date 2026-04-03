@@ -171,8 +171,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentUserId } = useAuthStore.getState();
 
     // 1. Проверяем, кто прислал. Сравниваем напрямую IDs.
-    // Добавляем fallback на случай, если currentUserId в сторе еще не инициализирован
-    const effectiveUserId = currentUserId || (typeof window !== 'undefined' ? localStorage.getItem('supabase.auth.token') : null);
     const isOwn = message.sender_id === currentUserId;
     const isChatActive = selectedChatId === message.chat_id;
     const isTabVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
@@ -411,7 +409,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         return {
           ...chat,
-          unreadCount: safeUnread(finalUnread),
+          unreadCount: safeUnread(initialUnread),
           lastMessageId: lastMsg?.id ?? null,
           lastMessageText: lastMsg?.content ?? null,
           lastMessageAt: lastMsg?.created_at ?? null,
