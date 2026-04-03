@@ -293,8 +293,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Создаем обновленный объект чата
     const updatedChat = {
       ...oldChat,
-      // Важно: обновляем массив сообщений внутри чата, чтобы сработал пересчет unreadCount в UI
+      // Обновляем массив сообщений и инкрементируем счетчик, если сообщение не наше
       messages: [...(oldChat.messages || []), message],
+      unreadCount: (oldChat.unreadCount || 0) + (message.isOwn ? 0 : 1),
       lastMessage: message.content || '',
       updated_at: message.created_at,
     };
@@ -385,6 +386,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         get().addMessage(messageWithSender);
         get().updateChatPreview(newMessage.chat_id, newMessage);
+
+        // Показываем уведомление, если сообщение не наше и окно не в фокусе
+        if (!messageWithSender.isOwn && document.visibilityState !== 'visible') {
+          if (Notification.permission === 'granted') {
+            new Notification(`Новое сообщение: ${messageWithSender.sender?.full_name || 'Чат'}` , {
+              body: messageWithSender.content || '',
+              icon: '/logo192.png'
+            });
+          }
+        }
       })
       .on('broadcast', { event: 'typing' }, (payload) => {
         const { userName } = payload.payload;

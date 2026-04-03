@@ -375,10 +375,11 @@ function ChatListItem({ chat, isSelected, onSelect, delay = 0 }: ChatListItemPro
           </span>
           {chat.unreadCount > 0 && (
             <span
-              className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent-yellow px-1.5 text-xs font-bold text-black"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-yellow text-[10px] font-bold text-black shadow-sm"
+              style={{ minWidth: '1.25rem' }}
               aria-label={`${chat.unreadCount} непрочитанных сообщений`}
             >
-              {chat.unreadCount}
+              {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
             </span>
           )}
         </div>
