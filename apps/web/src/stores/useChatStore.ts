@@ -170,10 +170,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { chats, selectedChatId, messages: allMessages } = get();
     const { currentUserId } = useAuthStore.getState();
 
-    // 1. Проверяем, кто прислал. Сравниваем напрямую IDs для надежности
+    // 1. Проверяем, кто прислал. Сравниваем напрямую IDs.
+    // Добавляем fallback на случай, если currentUserId в сторе еще не инициализирован
+    const effectiveUserId = currentUserId || (typeof window !== 'undefined' ? localStorage.getItem('supabase.auth.token') : null);
     const isOwn = message.sender_id === currentUserId;
     const isChatActive = selectedChatId === message.chat_id;
     const isTabVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
+
+    // Лог для отладки конкретного аккаунта
+    if (currentUserId === 'd0ced572-9909-428f-8d70-6266bf3e0d1f' || message.sender_id === 'd0ced572-9909-428f-8d70-6266bf3e0d1f') {
+      console.log(`[DEBUG-CHEREVKO] Msg: ${message.id}, Sender: ${message.sender_id}, Me: ${currentUserId}, isOwn: ${isOwn}, Active: ${isChatActive}`);
+    }
 
     const chatIndex = chats.findIndex((c) => c.id === message.chat_id);
     
@@ -386,17 +393,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
           (r: any) => r.user_id === currentUserId
         );
 
-        // Считаем unread: только сообщения других пользователей, которые созданы позже нашей последней отметки о прочтении
-        const lastReadDate = myRead ? new Date(myRead.last_read_at) : new Date(0);
-        const initialUnread = messages.filter(
-          (m: any) => 
-            m.sender_id !== currentUserId && 
-            new Date(m.created_at) > lastReadDate
-        ).length;
+        // Считаем непрочитанные: строго сообщения других пользователей после даты прочтения
+        const lastReadTime = myRead ? new Date(myRead.last_read_at).getTime() : 0;
+        
+        const unreadMsgs = messages.filter((m: any) => {
+          const isNotMe = m.sender_id !== currentUserId;
+          const isNewer = new Date(m.created_at).getTime() > lastReadTime;
+          return isNotMe && isNewer;
+        });
+
+        const initialUnread = unreadMsgs.length;
+
+        // Лог для диагностики аккаунта Dmitry Cherevko
+        if (currentUserId === 'd0ced572-9909-428f-8d70-6266bf3e0d1f') {
+          console.log(`[INIT-DEBUG] Chat: ${chat.name || chat.id}, LastRead: ${new Date(lastReadTime).toISOString()}, FoundUnread: ${initialUnread}`);
+        }
 
         return {
           ...chat,
-          unreadCount: safeUnread(initialUnread),
+          unreadCount: safeUnread(finalUnread),
           lastMessageId: lastMsg?.id ?? null,
           lastMessageText: lastMsg?.content ?? null,
           lastMessageAt: lastMsg?.created_at ?? null,
