@@ -214,7 +214,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     updatedChats.unshift(updatedChat);
 
     // 6. Обновляем и чаты, и сообщения одним махом
-    const nextMessages = chatMessages.some(m => m.id === message.id) 
+    const chatMessages = allMessages[message.chat_id] || [];
+    const nextMessages = chatMessages.some((m: Message) => m.id === message.id) 
       ? allMessages 
       : { ...allMessages, [message.chat_id]: [...chatMessages, message] };
 
@@ -269,7 +270,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     updated.splice(idx, 1);
-    updated.unshift(updatedChat);
+    updated.unshift(updatedChatData);
     set({ chats: updated });
   },
 
