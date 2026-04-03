@@ -32,13 +32,12 @@ export function ChatsPage() {
   // 2. EFFECTS ONLY (no state updates in render)
   // =====================================================
 
-  // Выбираем чат только один раз при начальной загрузке
+  // Жесткий выбор первого чата только если ничего не выбрано
   useEffect(() => {
-    if (!loading && chats.length > 0 && !selectedChatId) {
+    if (chats.length > 0 && !selectedChatId) {
       setSelectedChatId(chats[0].id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]); // Реагируем только на завершение загрузки  // ← УБРАЛ selectedChatId из deps!
+  }, [chats.length]); // Следим ТОЛЬКО за появлением списка чатов
 
   // =====================================================
   // 3. COMPUTED VALUES (pure, no side effects)

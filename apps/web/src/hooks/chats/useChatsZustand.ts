@@ -12,7 +12,12 @@ import { useChatStore, initChatSubscriptions } from '@/stores/useChatStore';
 
 export function useChats() {
   const { profile } = useAuth();
-  const { chats = [], loading, error, fetchChats } = useChatStore();
+  
+  // Используем точечные селекторы для стабильности ссылок
+  const chats = useChatStore(state => state.chats);
+  const loading = useChatStore(state => state.loading);
+  const error = useChatStore(state => state.error);
+  const fetchChats = useChatStore(state => state.fetchChats);
 
   // Debug log
   console.log('[useChats] Profile:', profile?.id, 'Loading:', loading);
@@ -56,14 +61,14 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   // Use stable empty array to prevent Zustand getSnapshot infinite loop
   const EMPTY_ARRAY: any[] = React.useMemo(() => [], []);
   
-  const messages = useChatStore((state) => {
+  const messages = useChatStore(React.useCallback((state) => {
     if (!chatId) return EMPTY_ARRAY;
     return state.messages[chatId] || EMPTY_ARRAY;
-  });
+  }, [chatId, EMPTY_ARRAY]));
   
-  const addMessage = useChatStore((state) => state.addMessage);
-  const clearMessages = useChatStore((state) => state.clearMessages);
-  const fetchMessages = useChatStore((state) => state.fetchMessages);
+  const addMessage = useChatStore(state => state.addMessage);
+  const clearMessages = useChatStore(state => state.clearMessages);
+  const fetchMessages = useChatStore(state => state.fetchMessages);
 
   const markAsRead = React.useCallback(async (chatId: string) => {
     const { data: auth } = await supabase.auth.getUser();
