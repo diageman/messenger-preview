@@ -4,7 +4,7 @@ import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
 import { useMessages, useAuth, useChats } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 import { useChatStore } from '@/stores/useChatStore';
 import { useShallow } from 'zustand/react/shallow';
