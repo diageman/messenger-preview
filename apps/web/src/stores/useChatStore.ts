@@ -50,6 +50,7 @@ export interface ChatItem {
   created_at: string;
   updated_at: string;
   direct_chat_key: string | null;
+  messages?: Message[];
 
   // Unread — единственное поле для списка и бейджа
   unreadCount: number;
@@ -166,42 +167,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * Realtime INSERT чужого сообщения — ЗДЕСЬ меняется unreadCount
    */
   applyIncomingMessage: (message) => {
-    const { chats, selectedChatId } = get();
+    const { chats, selectedChatId, messages: allMessages } = get();
     const { currentUserId } = useAuthStore.getState();
 
-    const own = isOwnMessage(message.sender_id, currentUserId);
-    const isOpenChat = selectedChatId === message.chat_id;
-    const isVisible =
-      typeof document !== 'undefined' && document.visibilityState === 'visible';
+    // 1. Проверяем, кто прислал. Сравниваем напрямую IDs для надежности
+    const isOwn = message.sender_id === currentUserId;
+    const isChatActive = selectedChatId === message.chat_id;
+    const isTabVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
 
-    const nextChats = chats.map((chat) => {
-      if (chat.id !== message.chat_id) return chat;
+    const chatIndex = chats.findIndex((c) => c.id === message.chat_id);
+    
+    // 2. Если чата нет — тянем заново из БД
+    if (chatIndex === -1) {
+      get().fetchChats();
+      return;
+    }
 
-      let nextUnread = chat.unreadCount;
+    // 3. Подготавливаем обновленный список чатов
+    const updatedChats = [...chats];
+    const oldChat = updatedChats[chatIndex];
 
-      if (!own) {
-        if (isOpenChat && isVisible) {
-          // Сообщение в открытом чате — не считаем unread
-          nextUnread = 0;
-          // Пометим как прочитанное
-          void get().markChatRead(message.chat_id, message.created_at);
-        } else {
-          // Сообщение в другом чате — увеличиваем unread
-          nextUnread = safeUnread(chat.unreadCount) + 1;
-        }
+    // 4. Логика счетчика
+    let newUnread = oldChat.unreadCount || 0;
+    if (isOwn || (isChatActive && isTabVisible)) {
+      newUnread = 0;
+      if (isChatActive && !isOwn) {
+        void get().markChatRead(message.chat_id, message.created_at);
       }
+    } else {
+      newUnread = newUnread + 1;
+    }
 
-      return {
-        ...chat,
-        lastMessageId: message.id,
-        lastMessageText: message.content,
-        lastMessageAt: message.created_at,
-        updated_at: message.created_at,
-        unreadCount: nextUnread,
-      };
+    const updatedChat = {
+      ...oldChat,
+      unreadCount: newUnread,
+      lastMessageId: message.id,
+      lastMessageText: message.content,
+      lastMessageAt: message.created_at,
+      updated_at: message.created_at,
+      // Сохраняем сообщение внутри чата для триггера useMemo на странице
+      messages: [...(oldChat.messages || []), message]
+    };
+
+    // 5. Перемещаем чат в начало списка
+    updatedChats.splice(chatIndex, 1);
+    updatedChats.unshift(updatedChat);
+
+    // 6. Обновляем и чаты, и сообщения одним махом
+    const chatMessages = allMessages[message.chat_id] || [];
+    const nextMessages = chatMessages.some(m => m.id === message.id) 
+      ? allMessages 
+      : { ...allMessages, [message.chat_id]: [...chatMessages, message] };
+
+    set({ 
+      chats: updatedChats, 
+      messages: nextMessages 
     });
-
-    set({ chats: nextChats });
 
     // Добавляем в messages
     const { messages } = get();
@@ -239,13 +260,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (idx === -1) return;
 
     const updated = [...chats];
-    const chat = { ...updated[idx] };
+    const oldChat = updated[idx];
 
-    // Двигаем чат вверх, обновляем превью (НО НЕ unreadCount!)
-    chat.lastMessageId = message.id;
-    chat.lastMessageText = message.content;
-    chat.lastMessageAt = message.created_at;
-    chat.updated_at = message.created_at;
+    // Двигаем чат вверх, сохраняя все поля (включая unreadCount)
+    const updatedChat = {
+      ...oldChat,
+      lastMessageId: message.id,
+      lastMessageText: message.content,
+      lastMessageAt: message.created_at,
+      updated_at: message.created_at,
+    };
 
     // Добавляем в messages если ещё нет
     const msgList = get().messages[chatId] || [];
@@ -355,7 +379,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content,
             sender_id,
             created_at
-          ),
+          ).order('created_at', { ascending: false }).limit(20),
           chat_reads (
             user_id,
             last_read_at
@@ -375,14 +399,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
           (r: any) => r.user_id === currentUserId
         );
 
-        // Считаем unread из snapshot: сообщения НЕ от меня, ПОСЛЕ last_read_at
-        const initialUnread = myRead
-          ? messages.filter(
-              (m: any) =>
-                m.sender_id !== currentUserId &&
-                new Date(m.created_at) > new Date(myRead.last_read_at)
-            ).length
-          : messages.filter((m: any) => m.sender_id !== currentUserId).length;
+        // Считаем unread: только сообщения других пользователей, которые созданы позже нашей последней отметки о прочтении
+        const lastReadDate = myRead ? new Date(myRead.last_read_at) : new Date(0);
+        const initialUnread = messages.filter(
+          (m: any) => 
+            m.sender_id !== currentUserId && 
+            new Date(m.created_at) > lastReadDate
+        ).length;
 
         return {
           ...chat,

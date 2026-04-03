@@ -118,17 +118,14 @@ export function ChatsPage() {
       description: peerMember?.profiles?.role || chat.description || '',
       peerAvatar: peerMember?.profiles?.avatar_url || peerMember?.profiles?.full_name?.[0] || '?',
       peerStatus: peerMember?.profiles?.status || 'offline',
-      participants: (chat.chat_members ?? []).map((m: any) => ({
-        id: m.user_id,
-        name: m.profiles?.full_name || 'Unknown',
-        avatar: m.profiles?.avatar_url || m.profiles?.full_name?.[0] || '?',
-        status: m.profiles?.status || 'offline',
-      })) || [],
-      lastMessage: lastMessage?.content || '',
-      timestamp: lastMessage?.created_at
+      participants: participants,
+      lastMessage: chat.lastMessageText || lastMessage?.content || '',
+      timestamp: chat.lastMessageAt
+        ? new Date(chat.lastMessageAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+        : lastMessage?.created_at
         ? new Date(lastMessage.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
         : '',
-      unreadCount,
+      unreadCount: chat.unreadCount || 0,
       isPinned: false,
       isImportant: false,
     };
