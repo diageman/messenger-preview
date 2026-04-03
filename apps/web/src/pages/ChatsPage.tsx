@@ -19,7 +19,8 @@ export function ChatsPage() {
   
   const chats = useChatStore(useShallow((state) => state.chats));
   const loading = useChatStore((state) => state.loading);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const selectedChatId = useChatStore((state) => state.selectedChatId);
+  const setSelectedChatId = useChatStore((state) => state.setSelectedChatId);
   const { messages = [], sendMessage } = useMessages({ chatId: selectedChatId }) as any;
   const chatListResizer = useResizable({
     key: 'messenger_chatlist_width',
@@ -83,13 +84,8 @@ export function ChatsPage() {
       ? messagesArray[messagesArray.length - 1]
       : null;
 
-    const myRead = chat.chat_reads?.find((r: any) => r.user_id === profile?.id);
-    const unreadCount = lastMessage && myRead
-      ? messagesArray.filter((m: any) =>
-          m.sender_id !== profile?.id &&
-          new Date(m.created_at) > new Date(myRead.last_read_at)
-        ).length
-      : 0;
+    // Доверяем значению из стора, не пересчитываем по базе
+    const unreadCount = chat.unreadCount || 0;
 
     let peerMember = null;
     if (chat.type === 'direct' && Array.isArray(chat.chat_members) && profile?.id) {

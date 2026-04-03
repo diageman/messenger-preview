@@ -76,9 +76,11 @@ interface ChatState {
   error: Error | null;
   typingUsers: Record<string, string[]>; // chatId -> userNames[]
   isInitialized: boolean;
+  selectedChatId: string | null;
 
   // Actions
   setChats: (chats: Chat[]) => void;
+  setSelectedChatId: (chatId: string | null) => void;
   addMessage: (message: Message) => void;
   updateChatPreview: (chatId: string, message: Message) => void;
   setLoading: (loading: boolean) => void;
@@ -176,11 +178,13 @@ async function fetchChatsImpl(set: any, get: any) {
       const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
       const dateString = lastMsg ? lastMsg.created_at : chat.updated_at;
       
+      const existingChat = get().chats.find((c: any) => c.id === chat.id);
+      
       return {
         ...chat,
         lastMessage: lastMsg ? lastMsg.content : (chat.description || 'Нет сообщений'),
         timestamp: dateString, // Храним сырую дату, форматируем в компоненте для стабильности
-        unreadCount: 0
+        unreadCount: existingChat?.unreadCount || 0
       };
     });
 
@@ -258,9 +262,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   typingUsers: {},
   isInitialized: false,
+  selectedChatId: null,
 
   // Actions
   setChats: (chats) => set({ chats }),
+
+  setSelectedChatId: (chatId) => {
+    set({ selectedChatId: chatId });
+    if (chatId) {
+      // При выборе чата обнуляем его счетчик
+      const { chats } = get();
+      const updated = chats.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c);
+      set({ chats: updated });
+    }
+  },
 
   addMessage: (message) => {
     const { messages } = get();
@@ -291,11 +306,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const oldChat = updatedChats[chatIndex];
     
     // Создаем обновленный объект чата
+    const { selectedChatId } = get();
+    const isNotActive = chatId !== selectedChatId;
+
     const updatedChat = {
       ...oldChat,
-      // Обновляем массив сообщений и инкрементируем счетчик, если сообщение не наше
       messages: [...(oldChat.messages || []), message],
-      unreadCount: (oldChat.unreadCount || 0) + (message.isOwn ? 0 : 1),
+      unreadCount: (oldChat.unreadCount || 0) + (!message.isOwn && isNotActive ? 1 : 0),
       lastMessage: message.content || '',
       updated_at: message.created_at,
     };
@@ -385,7 +402,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
         
         get().addMessage(messageWithSender);
-        get().updateChatPreview(newMessage.chat_id, newMessage);
+        get().updateChatPreview(newMessage.chat_id, messageWithSender);
 
         // Показываем уведомление, если сообщение не наше и окно не в фокусе
         if (!messageWithSender.isOwn && document.visibilityState !== 'visible') {
