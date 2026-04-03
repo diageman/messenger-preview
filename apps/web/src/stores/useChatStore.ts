@@ -388,8 +388,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 // INIT REALTIME SUBSCRIPTIONS (call once on app start)
 // =====================================================
 
-let isSubscribed = false;
-
 export const initChatSubscriptions = () => {
   const state = useChatStore.getState();
   if (state.isInitialized) return;
