@@ -95,6 +95,151 @@ interface ChatState {
 }
 
 // =====================================================
+// HELPER FUNCTIONS (defined outside store for stability)
+// =====================================================
+
+async function fetchChatsImpl(set: any, get: any) {
+  // Предотвращаем повторные вызовы во время загрузки
+  if (get().loading && get().chats.length > 0) return;
+
+  console.log('[ChatStore] fetchChats called');
+
+  // Set loading TRUE в начале
+  set({ loading: true, error: null });
+
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+
+    console.log('[ChatStore] User ID:', userId);
+
+    if (!userId) {
+      console.log('[ChatStore] No user authenticated, waiting for session...');
+      set({ loading: false }); // Просто останавливаем лоадер, не очищая массив
+      return;
+    }
+
+    // Get chat_ids where user is a member
+    const { data: memberData, error: memberError } = await supabase
+      .from('chat_members')
+      .select('chat_id')
+      .eq('user_id', userId);
+
+    if (memberError) throw memberError;
+
+    const chatIds = memberData?.map(m => m.chat_id) || [];
+
+    console.log('[ChatStore] Found chatIds:', chatIds.length);
+
+    if (chatIds.length === 0) {
+      console.log('[ChatStore] No chats found');
+      set({ chats: [], loading: false });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('chats')
+      .select(`
+          *,
+          chat_members!inner (
+            user_id,
+            role,
+            profiles:user_id (
+              id,
+              full_name,
+              email,
+              avatar_url,
+              status,
+              role
+            )
+          ),
+          messages (
+            id,
+            content,
+            sender_id,
+            created_at
+          ),
+          chat_reads (
+            user_id,
+            last_read_at
+          )
+        `)
+      .in('id', chatIds)
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    console.log('[ChatStore] Fetched chats:', data.length);
+
+    // Map DB rows to UI format to prevent crashes in ChatList
+    const formattedChats = (data || []).map(chat => {
+      const messages = chat.messages || [];
+      const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+
+      const dateString = lastMsg ? lastMsg.created_at : chat.updated_at;
+      const date = new Date(dateString || Date.now());
+      const now = new Date();
+      const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      const timestamp = isToday
+        ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+
+      return {
+        ...chat,
+        lastMessage: lastMsg ? lastMsg.content : (chat.description || 'Нет сообщений'),
+        timestamp,
+        unreadCount: 0
+      };
+    });
+
+    set({ chats: formattedChats });
+  } catch (err: any) {
+    console.error('[ChatStore] Error fetching chats:', err);
+    set({ error: err });
+  } finally {
+    set({ loading: false });
+  }
+}
+
+async function fetchMessagesImpl(set: any, chatId: string) {
+  try {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+    if (!userId || !chatId) return;
+
+    const { data, error } = await supabase
+      .from('messages')
+      .select(`
+          *,
+          sender:sender_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+
+    const messagesWithOwn = (data || []).map((msg: any) => ({
+      ...msg,
+      isOwn: msg.sender_id === userId,
+    }));
+
+    set((state: any) => ({
+      messages: {
+        ...state.messages,
+        [chatId]: messagesWithOwn,
+      }
+    }));
+  } catch (err) {
+    console.error('[ChatStore] Error fetching messages:', err);
+  }
+}
+
+// =====================================================
 // CREATE STORE
 // =====================================================
 
@@ -113,7 +258,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message) => {
     const { messages } = get();
     const chatMessages = messages[message.chat_id] || [];
-    
+
     // Dedupe by message ID
     const exists = chatMessages.some(m => m.id === message.id);
     if (exists) return;
@@ -132,7 +277,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   updateChatPreview: (chatId, message) => {
     const { chats } = get();
     const chatIndex = chats.findIndex(c => c.id === chatId);
-    
+
     if (chatIndex === -1) return;
 
     const updatedChats = [...chats];
@@ -162,6 +307,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       },
     });
   },
+
+  // Fetch chats from DB - stable reference
+  fetchChats: () => fetchChatsImpl(set, get),
+
+  // Fetch messages - stable reference
+  fetchMessages: (chatId: string) => fetchMessagesImpl(set, chatId),
 
   // Realtime subscriptions
   subscribeToChats: () => {
@@ -211,7 +362,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .on('broadcast', { event: 'typing' }, (payload) => {
         const { userName } = payload.payload;
         const chatId = channel.topic.replace('realtime:', '');
-        
+
         // Добавляем пользователя в список печатающих
         set((state) => ({
           typingUsers: {
@@ -239,148 +390,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   unsubscribe: () => {
     supabase.removeAllChannels();
-  },
-
-  // Fetch chats from DB
-  fetchMessages: async (chatId: string) => {
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData?.user?.id;
-      if (!userId || !chatId) return;
-
-      const { data, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          sender:sender_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true })
-        .limit(50);
-
-      if (error) throw error;
-
-      const messagesWithOwn = (data || []).map((msg: any) => ({
-        ...msg,
-        isOwn: msg.sender_id === userId,
-      }));
-
-      set((state) => ({
-        messages: {
-          ...state.messages,
-          [chatId]: messagesWithOwn,
-        }
-      }));
-    } catch (err) {
-      console.error('[ChatStore] Error fetching messages:', err);
-    }
-  },
-
-  fetchChats: async () => {
-    // Предотвращаем повторные вызовы во время загрузки
-    if (get().loading && get().chats.length > 0) return;
-    
-    console.log('[ChatStore] fetchChats called');
-
-    // Set loading TRUE в начале
-    set({ loading: true, error: null });
-
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData?.user?.id;
-
-      console.log('[ChatStore] User ID:', userId);
-
-      if (!userId) {
-        console.log('[ChatStore] No user authenticated, waiting for session...');
-        set({ loading: false }); // Просто останавливаем лоадер, не очищая массив
-        return;
-      }
-
-      // Get chat_ids where user is a member
-      const { data: memberData, error: memberError } = await supabase
-        .from('chat_members')
-        .select('chat_id')
-        .eq('user_id', userId);
-
-      if (memberError) throw memberError;
-
-      const chatIds = memberData?.map(m => m.chat_id) || [];
-
-      console.log('[ChatStore] Found chatIds:', chatIds.length);
-
-      if (chatIds.length === 0) {
-        console.log('[ChatStore] No chats found');
-        set({ chats: [], loading: false });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('chats')
-        .select(`
-          *,
-          chat_members!inner (
-            user_id,
-            role,
-            profiles:user_id (
-              id,
-              full_name,
-              email,
-              avatar_url,
-              status,
-              role
-            )
-          ),
-          messages (
-            id,
-            content,
-            sender_id,
-            created_at
-          ),
-          chat_reads (
-            user_id,
-            last_read_at
-          )
-        `)
-        .in('id', chatIds)
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-
-      console.log('[ChatStore] Fetched chats:', data.length);
-
-      // Map DB rows to UI format to prevent crashes in ChatList
-      const formattedChats = (data || []).map(chat => {
-        const messages = chat.messages || [];
-        const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-        
-        const dateString = lastMsg ? lastMsg.created_at : chat.updated_at;
-        const date = new Date(dateString || Date.now());
-        const now = new Date();
-        const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        const timestamp = isToday 
-          ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
-
-        return {
-          ...chat,
-          lastMessage: lastMsg ? lastMsg.content : (chat.description || 'Нет сообщений'),
-          timestamp,
-          unreadCount: 0
-        };
-      });
-
-      set({ chats: formattedChats });
-    } catch (err: any) {
-      console.error('[ChatStore] Error fetching chats:', err);
-      set({ error: err });
-    } finally {
-      set({ loading: false });
-    }
   },
 }));
 

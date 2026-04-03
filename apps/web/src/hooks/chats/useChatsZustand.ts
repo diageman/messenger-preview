@@ -39,7 +39,8 @@ export function useChats() {
       // Если профиль пропал (logout), ставим loading в false, чтобы не крутился вечно
       useChatStore.setState({ loading: false });
     }
-  }, [profile?.id, fetchChats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]); // fetchChats исключён - это стабильная ссылка из Zustand store
 
   return {
     chats,
@@ -88,7 +89,8 @@ export function useMessages({ chatId }: UseMessagesOptions) {
     } else {
       fetchMessages(chatId);
     }
-  }, [chatId, fetchMessages, clearMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]); // fetchMessages и clearMessages исключены - стабильные ссылки из Zustand store
 
   // Отдельный эффект для прочтения, чтобы не зацикливать рендер
   React.useEffect(() => {
