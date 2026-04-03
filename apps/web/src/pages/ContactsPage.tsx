@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useContacts } from '@/hooks/contacts/useContacts';
 import { useNavigate } from 'react-router-dom';
-import { useChatActions } from '@/hooks/chats/useChats';
+import { useChatActions } from '@/hooks/chats/useChatsZustand';
 
 const statusLabels = {
   online: 'В сети',
