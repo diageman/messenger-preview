@@ -219,10 +219,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     updatedChats.unshift(updatedChat);
 
     // 6. Обновляем и чаты, и сообщения одним махом
-    const chatMessages = allMessages[message.chat_id] || [];
-    const nextMessages = chatMessages.some((m: Message) => m.id === message.id) 
+    const currentMsgs = allMessages[message.chat_id] || [];
+    const nextMessages = currentMsgs.some((m: Message) => m.id === message.id) 
       ? allMessages 
-      : { ...allMessages, [message.chat_id]: [...chatMessages, message] };
+      : { ...allMessages, [message.chat_id]: [...currentMsgs, message] };
 
     set({ 
       chats: updatedChats, 
@@ -443,8 +443,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         `
         )
         .eq('chat_id', chatId)
-        .order('created_at', { ascending: true })
-        .limit(50);
+        .order('created_at', { ascending: true }); // Убираем лимит для теста, чтобы видеть всё
 
       if (error) throw error;
 

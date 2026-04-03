@@ -77,7 +77,10 @@ export function ChatWindow({
     setAutoScrollEnabled(isNearBottom);
   };
 
-  const handleSend = React.useCallback(() => {
+  const handleSend = React.useCallback((e?: React.FormEvent) => {
+    // Предотвращаем перезагрузку страницы
+    if (e) e.preventDefault();
+    
     if (messageText.trim() && onSendMessage) {
       onSendMessage(messageText.trim());
       setMessageText('');
@@ -248,9 +251,9 @@ export function ChatWindow({
         </ScrollArea>
 
         {/* Message Input */}
-        <div className="shrink-0 border-t border-border-soft bg-bg-sidebar p-3">
+        <form onSubmit={handleSend} className="shrink-0 border-t border-border-soft bg-bg-sidebar p-3">
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Прикрепить файл">
+            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Прикрепить файл">
               <Paperclip className="h-5 w-5" />
             </Button>
             <div className="flex-1">
@@ -265,10 +268,11 @@ export function ChatWindow({
                 aria-label="Поле ввода сообщения"
               />
             </div>
-            <Button variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Эмодзи">
+            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Эмодзи">
               <Smile className="h-5 w-5" />
             </Button>
             <Button
+              type="submit"
               size="icon"
               className={cn(
                 'h-10 w-10 shrink-0 transition-all duration-200',
@@ -277,14 +281,13 @@ export function ChatWindow({
                   : 'bg-bg-elevated text-text-muted hover:text-text-secondary'
               )}
               disabled={!messageText.trim()}
-              onClick={handleSend}
               title="Отправить"
               aria-label="Отправить сообщение"
             >
               <Send className="h-5 w-5" />
             </Button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
