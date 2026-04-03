@@ -179,12 +179,18 @@ async function fetchChatsImpl(set: any, get: any) {
       const dateString = lastMsg ? lastMsg.created_at : chat.updated_at;
       
       const existingChat = get().chats.find((c: any) => c.id === chat.id);
+      const myRead = chat.chat_reads?.find((r: any) => r.user_id === userId);
       
+      // Если есть данные о прочтении, считаем сообщения после этой даты
+      const initialUnread = myRead 
+        ? chat.messages?.filter((m: any) => m.sender_id !== userId && new Date(m.created_at) > new Date(myRead.last_read_at)).length 
+        : 0;
+
       return {
         ...chat,
         lastMessage: lastMsg ? lastMsg.content : (chat.description || 'Нет сообщений'),
-        timestamp: dateString, // Храним сырую дату, форматируем в компоненте для стабильности
-        unreadCount: existingChat?.unreadCount || 0
+        timestamp: dateString,
+        unreadCount: existingChat ? existingChat.unreadCount : initialUnread
       };
     });
 
@@ -401,8 +407,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         };
         
+        // addMessage сам внутри вызывает updateChatPreview, второй вызов не нужен
         get().addMessage(messageWithSender);
-        get().updateChatPreview(newMessage.chat_id, messageWithSender);
 
         // Показываем уведомление, если сообщение не наше и окно не в фокусе
         if (!messageWithSender.isOwn && document.visibilityState !== 'visible') {
