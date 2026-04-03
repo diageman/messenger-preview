@@ -206,6 +206,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().addMessage(newMessage);
         get().updateChatPreview(newMessage.chat_id, newMessage);
       })
+      .on('broadcast', { event: 'typing' }, (payload) => {
+        const { userName } = payload.payload;
+        const chatId = channel.topic.replace('realtime:', '');
+        
+        // Добавляем пользователя в список печатающих
+        set((state) => ({
+          typingUsers: {
+            ...state.typingUsers,
+            [chatId]: [...new Set([...(state.typingUsers[chatId] || []), userName])]
+          }
+        }));
+
+        // Убираем его через 3 секунды (таймаут печати)
+        setTimeout(() => {
+          set((state) => ({
+            typingUsers: {
+              ...state.typingUsers,
+              [chatId]: (state.typingUsers[chatId] || []).filter(name => name !== userName)
+            }
+          }));
+        }, 3000);
+      })
       .subscribe();
 
     return () => {

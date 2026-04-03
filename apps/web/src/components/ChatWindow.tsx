@@ -42,6 +42,7 @@ export function ChatWindow({
   const [messageText, setMessageText] = React.useState('');
   const { profile } = useAuth();
   const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
+  const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || []);
   const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -188,8 +189,14 @@ export function ChatWindow({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-text-muted truncate">
-                {displayDescription}
+              <p className="text-xs truncate">
+                {typingUsers.length > 0 ? (
+                  <span className="text-accent-yellow animate-pulse font-medium">
+                    {typingUsers.join(', ')} {typingUsers.length > 1 ? 'печатают' : 'печатает'}...
+                  </span>
+                ) : (
+                  <span className="text-text-muted">{displayDescription}</span>
+                )}
               </p>
             </div>
           </div>
