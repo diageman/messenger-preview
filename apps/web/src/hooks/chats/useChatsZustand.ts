@@ -30,10 +30,11 @@ export function useChats() {
     if (profile?.id) {
       console.log('[useChats] Fetching chats for user:', profile.id);
       fetchChats();
+    } else {
+      // Если профиль пропал (logout), ставим loading в false, чтобы не крутился вечно
+      useChatStore.setState({ loading: false });
     }
-    // Если profile = null или undefined - просто не делаем fetch
-    // Стор сам очистится при logout через auth state change
-  }, [profile?.id]);
+  }, [profile?.id, fetchChats]);
 
   return {
     chats,
@@ -62,15 +63,16 @@ export function useMessages({ chatId }: UseMessagesOptions) {
   
   const addMessage = useChatStore((state) => state.addMessage);
   const clearMessages = useChatStore((state) => state.clearMessages);
+  const fetchMessages = useChatStore((state) => state.fetchMessages);
 
-  // Clear messages when chatId changes (safe - only clears, doesn't trigger re-fetch)
+  // Fetch messages when chatId changes
   React.useEffect(() => {
     if (!chatId) {
       clearMessages('');
     } else {
-      clearMessages(chatId);
+      fetchMessages(chatId);
     }
-  }, [chatId]);  // ← УБРАЛ clearMessages из deps!
+  }, [chatId, fetchMessages, clearMessages]);
 
   // Send message with optimistic update
   const sendMessage = React.useCallback(async (content: string, type: string = 'text') => {
@@ -96,7 +98,11 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[sendMessage] Supabase error:', error);
+        alert(`Ошибка отправки сообщения: ${error.message}`);
+        throw error;
+      }
 
       // Optimistic: add to global store immediately
       if (data) {
@@ -145,7 +151,18 @@ export function useChatActions() {
         p_user2_id: otherUserId,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[createDirectChat] RPC error:', error);
+        alert(`Ошибка создания чата: ${error.message}`);
+        throw error;
+      }
+
+      if (!data) {
+        alert('Чат не был создан: база данных вернула пустой результат.');
+      } else {
+        // Успешно создали — принудительно обновляем список чатов в интерфейсе!
+        useChatStore.getState().fetchChats();
+      }
 
       return data;
     } catch (err: any) {

@@ -2,7 +2,7 @@ import { cn } from '@messenger/ui';
 import { TopBar } from '../components/TopBar';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
-import { useMessages, useAuth } from '../hooks/chats/useChatsZustand';
+import { useMessages, useAuth, useChats } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
 import { useState, useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
@@ -13,6 +13,9 @@ export function ChatsPage() {
   // 1. ALL HOOKS AT THE TOP (NO CONDITIONS)
   // =====================================================
   const { profile } = useAuth();
+  // Подключаем основной хук чатов, чтобы инициировать загрузку данных
+  useChats(); 
+  
   const chats = useChatStore((state) => state.chats);  // ← Селектор вместо деструктуризации
   const loading = useChatStore((state) => state.loading);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);

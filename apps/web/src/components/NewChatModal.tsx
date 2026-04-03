@@ -7,7 +7,7 @@ import { Avatar } from '@messenger/ui';
 import { X, Search, Users, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useContacts } from '@/hooks/contacts/useContacts';
-import { useChatActions } from '@/hooks/chats/useChats';
+import { useChatActions } from '@/hooks/chats/useChatsZustand';
 
 interface Contact {
   id: string;
@@ -50,12 +50,14 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     try {
       setCreating(true);
       const chatId = await createDirectChat(selectedContact);
+      
       if (chatId) {
         navigate('/chats');
         onClose();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create chat:', error);
+      alert('Произошла ошибка при выполнении: ' + error.message);
     } finally {
       setCreating(false);
     }

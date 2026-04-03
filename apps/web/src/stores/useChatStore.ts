@@ -83,6 +83,7 @@ interface ChatState {
   setError: (error: Error | null) => void;
   clearMessages: (chatId: string) => void;
   fetchChats: () => Promise<void>;
+  fetchMessages: (chatId: string) => Promise<void>;
 
   // Realtime subscription management
   subscribeToChats: () => void;
@@ -95,10 +96,10 @@ interface ChatState {
 // =====================================================
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  // Initial state - loading FALSE по умолчанию!
+  // Initial state - loading TRUE для предотвращения мигания пустого списка при F5
   chats: [],
   messages: {},
-  loading: false,  // ← НЕ true!
+  loading: true,
   error: null,
 
   // Actions
@@ -201,6 +202,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   // Fetch chats from DB
+  fetchMessages: async (chatId: string) => {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id;
+      if (!userId || !chatId) return;
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:sender_id (
+            id,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (error) throw error;
+
+      const messagesWithOwn = (data || []).map((msg: any) => ({
+        ...msg,
+        isOwn: msg.sender_id === userId,
+      }));
+
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [chatId]: messagesWithOwn,
+        }
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Error fetching messages:', err);
+    }
+  },
+
   fetchChats: async () => {
     console.log('[ChatStore] fetchChats called');
     
@@ -214,8 +253,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.log('[ChatStore] User ID:', userId);
 
       if (!userId) {
-        console.log('[ChatStore] No user authenticated, clearing chats');
-        set({ chats: [], loading: false });
+        console.log('[ChatStore] No user authenticated, waiting for session...');
+        set({ loading: false }); // Просто останавливаем лоадер, не очищая массив
         return;
       }
 
@@ -271,12 +310,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       console.log('[ChatStore] Fetched chats:', data.length);
 
-      set({ chats: data || [], loading: false });
+      // Map DB rows to UI format to prevent crashes in ChatList
+      const formattedChats = (data || []).map(chat => {
+        const messages = chat.messages || [];
+        const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+        
+        const dateString = lastMsg ? lastMsg.created_at : chat.updated_at;
+        const date = new Date(dateString || Date.now());
+        const now = new Date();
+        const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        const timestamp = isToday 
+          ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+
+        return {
+          ...chat,
+          lastMessage: lastMsg ? lastMsg.content : (chat.description || 'Нет сообщений'),
+          timestamp,
+          unreadCount: 0
+        };
+      });
+
+      set({ chats: formattedChats });
     } catch (err: any) {
       console.error('[ChatStore] Error fetching chats:', err);
-      set({ error: err, loading: false });
+      set({ error: err });
+    } finally {
+      set({ loading: false });
     }
-    // loading:false вызывается в try/catch выше
   },
 }));
 
