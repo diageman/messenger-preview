@@ -86,13 +86,15 @@ export function useMessages({ chatId }: UseMessagesOptions) {
 
   // Fetch messages and mark read when chatId changes
   React.useEffect(() => {
-    if (!chatId || chatId.length < 30) {
-      clearMessages('');
-    } else {
-      fetchMessages(chatId);
+    // Если chatId нет или он некорректный (пустая строка) — просто очищаем и выходим
+    if (!chatId || String(chatId).length < 30) {
+      if (chatId === '') clearMessages('');
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId]); // fetchMessages и clearMessages исключены - стабильные ссылки из Zustand store
+    
+    console.log('[useMessages] Requesting messages for:', chatId);
+    fetchMessages(chatId);
+  }, [chatId, fetchMessages, clearMessages]); // fetchMessages и clearMessages исключены - стабильные ссылки из Zustand store
 
   // Отдельный эффект для прочтения, чтобы не зацикливать рендер
   React.useEffect(() => {
