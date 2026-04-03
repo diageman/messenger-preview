@@ -92,7 +92,8 @@ interface ChatState {
   error: Error | null;
   typingUsers: Record<string, string[]>; // chatId -> userNames[]
   isInitialized: boolean;
-  appStartTime: number; // Время старта приложения
+  appStartTime: number;
+  initialMessageIds: Set<string>; // ID сообщений, загруженных при старте
   selectedChatId: string | null;
 
   // Actions
@@ -126,6 +127,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   typingUsers: {},
   isInitialized: false,
   appStartTime: Date.now(),
+  initialMessageIds: new Set(),
   selectedChatId: null,
 
   // ====== ACTIONS ======
@@ -231,17 +233,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Уведомление: только для чужих, в неактивном чате и ПОСЛЕ загрузки старых данных
-    const { isInitialized, appStartTime } = get();
+    // Уведомление: только для чужих, в неактивном чате и если сообщения НЕ БЫЛО в базе при старте
+    const { isInitialized, appStartTime, initialMessageIds } = get();
     const now = Date.now();
-    const messageTime = new Date(message.created_at).getTime();
     
-    // 1. Прошло минимум 2 секунды с запуска (защита от пачки сообщений при коннекте)
     const isAfterGracePeriod = (now - appStartTime) > 2000; 
-    // 2. Сообщение создано ПОСЛЕ того, как приложение реально запустилось (важно для refresh)
-    const isCreatedAfterLaunch = messageTime > appStartTime;
+    const isTrulyNew = !initialMessageIds.has(message.id);
 
-    if (!isOwn && !isChatActive && isInitialized && isAfterGracePeriod && isCreatedAfterLaunch) {
+    if (!isOwn && !isChatActive && isInitialized && isAfterGracePeriod && isTrulyNew) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
@@ -427,7 +426,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       });
 
-      set({ chats: formattedChats, loading: false, isInitialized: true });
+      // Собираем все ID сообщений из снимка базы для дедупликации уведомлений
+      const allInitialIds = new Set<string>();
+      formattedChats.forEach(chat => {
+        chat.messages?.forEach(m => allInitialIds.add(m.id));
+      });
+
+      set({ 
+        chats: formattedChats, 
+        loading: false, 
+        isInitialized: true,
+        initialMessageIds: allInitialIds
+      });
     } catch (err: any) {
       console.error('[ChatStore] Error fetching chats:', err);
       set({ error: err, loading: false });
