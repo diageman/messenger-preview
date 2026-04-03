@@ -229,8 +229,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: nextMessages 
     });
 
-    // Уведомление
-    if (!isOwn && !isChatActive) {
+    // Уведомление (только для живого трафика, не при загрузке)
+    const isLive = get().isInitialized;
+    if (!isOwn && !isChatActive && isLive) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
@@ -298,12 +299,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentUserId } = useAuthStore.getState();
     if (!currentUserId || !chatId) return;
 
-    // Оптимистично обнуляем unread
-    const { chats } = get();
-    const updated = chats.map((c) =>
-      c.id === chatId ? { ...c, unreadCount: 0 } : c
-    );
-    set({ chats: updated });
+    // Оптимистично обнуляем unread в списке
+    set((state) => ({
+      chats: state.chats.map((c) =>
+        c.id === chatId ? { ...c, unreadCount: 0 } : c
+      ),
+    }));
 
     // Пишем в БД
     try {
