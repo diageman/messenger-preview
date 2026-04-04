@@ -114,13 +114,14 @@ export function SettingsPage() {
 
   // Fetch real statistics from Supabase
   React.useEffect(() => {
-    if (!authProfile?.id) return;
+    if (!authProfile) return;
+    const { id, created_at, organization_id } = authProfile;
 
     async function fetchStats() {
       try {
         // Calculate tenure from created_at
-        if (authProfile.created_at) {
-          const createdAt = new Date(authProfile.created_at);
+        if (created_at) {
+          const createdAt = new Date(created_at);
           const diffDays = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
           const years = Math.floor(diffDays / 365.25);
           const months = Math.floor((diffDays % 365.25) / 30.44);
@@ -136,7 +137,7 @@ export function SettingsPage() {
         const { count: msgCount } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
-          .eq('sender_id', authProfile.id);
+          .eq('sender_id', id);
         setStats(prev => ({
           ...prev,
           messageCount: msgCount != null ? msgCount.toLocaleString('ru-RU') : '0',
@@ -146,8 +147,8 @@ export function SettingsPage() {
         const { count: contactCount } = await supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true })
-          .eq('organization_id', authProfile.organization_id)
-          .neq('id', authProfile.id);
+          .eq('organization_id', organization_id)
+          .neq('id', id);
         setStats(prev => ({
           ...prev,
           contactCount: contactCount != null ? contactCount.toLocaleString('ru-RU') : '0',
@@ -157,7 +158,7 @@ export function SettingsPage() {
         const { data: orgData } = await supabase
           .from('organizations')
           .select('name')
-          .eq('id', authProfile.organization_id)
+          .eq('id', organization_id)
           .single();
         if (orgData?.name) {
           setStats(prev => ({ ...prev, office: orgData.name }));
@@ -167,7 +168,7 @@ export function SettingsPage() {
         const { data: deptData } = await supabase
           .from('department_members')
           .select('departments(name)')
-          .eq('user_id', authProfile.id)
+          .eq('user_id', id)
           .single();
         if (deptData?.departments) {
           setDepartment((deptData.departments as any).name || '');
