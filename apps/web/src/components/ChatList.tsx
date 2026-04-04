@@ -14,7 +14,6 @@ import {
   Pin,
   Search,
   X,
-  Plus,
   Archive,
   Users,
   Pencil,
