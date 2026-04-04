@@ -229,7 +229,7 @@ export function ChatWindow({
         </header>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-3" onScroll={handleScroll}>
+        <ScrollArea className="flex-1 p-4" onScroll={handleScroll}>
           <div className="space-y-2">
             {messages.map((message, index) => {
               const prevDate = index > 0 ? messages[index - 1].date : null;
@@ -260,7 +260,7 @@ export function ChatWindow({
                     )}
                     <div
                       className={cn(
-                        'max-w-[65%] rounded-xl px-3 py-2',
+                        'max-w-[65%] rounded-xl px-4 py-2 min-h-[32px] break-words',
                         message.isOwn
                           ? 'bubble-outgoing'
                           : 'bubble-incoming'

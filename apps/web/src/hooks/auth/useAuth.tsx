@@ -29,6 +29,7 @@ export interface Profile {
   phone: string | null;
   email: string;
   status: 'online' | 'busy' | 'away' | 'dnd' | 'offline';
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }

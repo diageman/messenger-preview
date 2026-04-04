@@ -9,10 +9,11 @@ import { motion } from 'framer-motion';
 import {
   Search,
   MessageSquare,
-  UserPlus,
   Mail,
   Phone,
   X,
+  Trash2,
+  Shield,
 } from 'lucide-react';
 import { useContacts } from '@/hooks/contacts/useContacts';
 import { useNavigate } from 'react-router-dom';
@@ -29,23 +30,16 @@ const statusLabels = {
 export function ContactsPage() {
   const navigate = useNavigate();
   const { createDirectChat } = useChatActions();
-  const { contacts, loading } = useContacts();
+  const { loading, isAdmin, searchContacts, deleteContact } = useContacts();
   const [searchQuery, setSearchQuery] = React.useState('');
-  const [selectedDepartment, setSelectedDepartment] = React.useState<string>('all');
   const [creatingChat, setCreatingChat] = React.useState<string | null>(null);
+  const [deletingContact, setDeletingContact] = React.useState<string | null>(null);
 
-  const departments = [...new Set(contacts.map((c) => c.role))];
+  // Используем searchContacts - возвращает [] при пустом запросе
+  const filteredContacts = searchContacts(searchQuery);
 
-  const filteredContacts = contacts.filter((contact) => {
-    const matchesSearch = contact.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.role.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDepartment = selectedDepartment === 'all' || contact.role === selectedDepartment;
-    return matchesSearch && matchesDepartment;
-  });
-
-  const onlineCount = contacts.filter((c) => c.status === 'online').length;
-  const total = contacts.length;
-
+  const onlineCount = filteredContacts.filter((c) => c.status === 'online').length;
+  const total = filteredContacts.length;
   const handleStartChat = async (contactId: string) => {
     try {
       setCreatingChat(contactId);
@@ -60,6 +54,22 @@ export function ContactsPage() {
     }
   };
 
+  const handleDeleteContact = async (contactId: string, contactName: string) => {
+    if (!confirm(`Удалить контакт "${contactName}"?\
+\
+Это действие необратимо. Пользователь будет удалён из системы.`)) {
+      return;
+    }
+
+    try {
+      setDeletingContact(contactId);
+      await deleteContact(contactId);
+    } catch (error: any) {
+      alert('Ошибка при удалении: ' + error.message);
+    } finally {
+      setDeletingContact(null);
+    }
+  };
   return (
     <div className="flex h-full flex-col bg-bg-app">
       {/* Page Header */}
@@ -67,24 +77,32 @@ export function ContactsPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-text-primary">Контакты</h1>
-            <Badge variant="secondary" className="text-xs">
-              {onlineCount} онлайн
-            </Badge>
+            {(searchQuery.trim().length > 0 || isAdmin) && (
+              <Badge variant="secondary" className="text-xs">
+                {searchQuery.trim().length > 0 ? `${total} найдено` : `${total} всего`}
+              </Badge>
+            )}
+            {isAdmin && (
+              <Badge variant="secondary" className="text-xs bg-accent-yellow/10 text-accent-yellow">
+                <Shield className="mr-1 h-3 w-3" />
+                Админ
+              </Badge>
+            )}
           </div>
-          <p className="text-sm text-text-muted">Сотрудники компании</p>
+          <p className="text-sm text-text-muted">
+            {searchQuery.trim().length === 0 
+              ? (isAdmin ? `Все контакты организации (${total})` : 'Введите запрос для поиска сотрудников') 
+              : 'Результаты поиска'}
+          </p>
         </div>
-        <Button variant="primary" size="sm">
-          <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-          Добавить
-        </Button>
       </div>
 
       {/* Toolbar */}
       <div className="flex h-12 shrink-0 items-center gap-4 border-b border-border-soft bg-bg-panel px-6">
-        <div className="relative w-64">
+        <div className="relative w-80">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
           <Input
-            placeholder="Поиск..."
+            placeholder="Поиск по ФИО, email, телефону..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 bg-bg-elevated border-border-soft pl-9 text-sm"
@@ -99,31 +117,19 @@ export function ContactsPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="h-8 rounded-lg border border-border-soft bg-bg-elevated px-3 text-sm text-text-secondary focus:border-accent-yellow focus:outline-none"
-          >
-            <option value="all">Все отделы</option>
-            {departments.map((dept) => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="ml-auto flex items-center gap-4 text-xs text-text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-success"></span>
-            {onlineCount} онлайн
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-text-muted"></span>
-            {total - onlineCount} оффлайн
-          </span>
-        </div>
+        {(searchQuery.trim().length > 0 || isAdmin) && (
+          <div className="ml-auto flex items-center gap-4 text-xs text-text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-success"></span>
+              {onlineCount} онлайн
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-text-muted"></span>
+              {total - onlineCount} оффлайн
+            </span>
+          </div>
+        )}
       </div>
-
       {/* Content */}
       <ScrollArea className="flex-1">
         <div className="p-6">
@@ -131,8 +137,24 @@ export function ContactsPage() {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="mb-4 flex h-8 w-8 animate-spin items-center justify-center rounded-full border-2 border-accent-yellow border-t-transparent" />
-                <p className="text-sm text-text-muted">Загрузка контактов...</p>
+                <p className="text-sm text-text-muted">Загрузка...</p>
               </div>
+            ) : searchQuery.trim().length === 0 && !isAdmin ? (
+              /* Пустое состояние - подсказка для поиска */
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center py-16 text-center"
+              >
+                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-bg-elevated">
+                  <Search className="h-8 w-8 text-text-muted" />
+                </div>
+                <p className="text-base font-medium text-text-primary">Поиск сотрудников</p>
+                <p className="mt-2 max-w-sm text-sm text-text-muted">
+                  Введите ФИО, email или телефон для поиска.
+                  <br />Контакты отображаются только при поиске.
+                </p>
+              </motion.div>
             ) : filteredContacts.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -144,23 +166,16 @@ export function ContactsPage() {
                 </div>
                 <p className="text-sm font-medium text-text-primary">Ничего не найдено</p>
                 <p className="mt-1 text-sm text-text-muted">
-                  {contacts.length === 0 
-                    ? 'В вашей организации пока нет других сотрудников'
-                    : 'Попробуйте изменить параметры поиска'}
+                  Попробуйте изменить параметры поиска
                 </p>
-                {contacts.length > 0 && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedDepartment('all');
-                    }}
-                  >
-                    Сбросить фильтры
-                  </Button>
-                )}
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setSearchQuery('')}
+                >
+                  Сбросить поиск
+                </Button>
               </motion.div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -171,7 +186,14 @@ export function ContactsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.03 }}
                   >
-                    <ContactCard contact={contact} onStartChat={handleStartChat} isCreating={creatingChat === contact.id} />
+                    <ContactCard 
+                      contact={contact} 
+                      onStartChat={handleStartChat} 
+                      isCreating={creatingChat === contact.id}
+                      isAdmin={isAdmin}
+                      isDeleting={deletingContact === contact.id}
+                      onDelete={handleDeleteContact}
+                    />
                   </motion.div>
                 ))}
               </div>
@@ -188,9 +210,11 @@ interface ContactCardProps {
   contact: import('@/hooks/contacts/useContacts').Contact;
   onStartChat: (contactId: string) => void;
   isCreating: boolean;
+  isAdmin: boolean;
+  isDeleting: boolean;
+  onDelete: (contactId: string, contactName: string) => void;
 }
-
-function ContactCard({ contact, onStartChat, isCreating }: ContactCardProps) {
+function ContactCard({ contact, onStartChat, isCreating, isAdmin, isDeleting, onDelete }: ContactCardProps) {
   const avatarFallback = contact.full_name
     .split(' ')
     .map((n: string) => n[0])
@@ -209,13 +233,18 @@ function ContactCard({ contact, onStartChat, isCreating }: ContactCardProps) {
         <div className="flex-1 overflow-hidden">
           <div className="flex items-start justify-between">
             <div className="flex-1 overflow-hidden">
-              <h3 className="truncate text-sm font-semibold text-text-primary">
-                {contact.full_name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="truncate text-sm font-semibold text-text-primary">
+                  {contact.full_name}
+                </h3>
+                {contact.is_admin && (
+                  <Shield className="h-3.5 w-3.5 text-accent-yellow shrink-0" />
+                )}
+              </div>
               <p className="truncate text-xs text-text-secondary">{contact.role}</p>
             </div>
             <span className={cn(
-              'flex items-center gap-1.5 text-xs',
+              'flex items-center gap-1.5 text-xs shrink-0 ml-2',
               contact.status === 'online' && 'text-success',
               contact.status === 'busy' && 'text-error',
               contact.status === 'away' && 'text-warning',
@@ -266,6 +295,21 @@ function ContactCard({ contact, onStartChat, isCreating }: ContactCardProps) {
                 </>
               )}
             </Button>
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-error hover:text-error hover:bg-error/10"
+                onClick={() => onDelete(contact.id, contact.full_name)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </div>
