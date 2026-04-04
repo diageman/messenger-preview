@@ -132,7 +132,7 @@ p {
 }
 
 /* ===== FOCUS ===== */
-:focus-visible {
+:focus-visible:not(.outline-none):not(.message-input) {
   outline: 2px solid var(--color-accent-yellow);
   outline-offset: 2px;
 }
@@ -152,6 +152,21 @@ p {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ===== NUCLEAR FIX FOR TEXTAREA OUTLINE ===== */
+textarea.message-input,
+textarea.message-input:focus,
+textarea.message-input:focus-visible,
+textarea.message-input:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none !important;
+  border-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
 
 @keyframes shimmer {

@@ -288,18 +288,17 @@ export function ChatWindow({
             <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Прикрепить файл">
               <Paperclip className="h-5 w-5" />
             </Button>
-            <div className="flex-1">
-              <textarea
-                ref={textareaRef}
-                placeholder="Напишите сообщение..."
-                value={messageText}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                className="message-input w-full resize-none"
-                aria-label="Поле ввода сообщения"
-              />
-            </div>
+            <textarea
+              ref={textareaRef}
+              placeholder="Напишите сообщение..."
+              value={messageText}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className="message-input flex-1 w-full resize-none overflow-y-auto [&::-webkit-scrollbar]:hidden py-2.5 bg-transparent border-none focus:outline-none focus:ring-0 outline-none"
+              aria-label="Поле ввода сообщения"
+            />
             <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Эмодзи">
               <Smile className="h-5 w-5" />
             </Button>
