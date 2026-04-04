@@ -24,76 +24,96 @@ const secondaryNavigation = [
 
 export function AppShell() {
   return (
-    <div className="flex h-screen bg-background-primary">
+    <div className="flex h-screen bg-bg-app">
       {/* Sidebar */}
-      <aside className="flex w-64 flex-col border-r border-border-default bg-background-secondary">
+      <aside className="flex w-64 flex-col border-r border-border-soft bg-bg-sidebar">
         {/* Logo */}
-        <div className="flex h-16 items-center gap-3 border-b border-border-default px-4">
-          <Car className="h-8 w-8 text-brand-yellow-primary" strokeWidth={1.5} />
+        <div className="flex h-16 items-center gap-3 border-b border-border-soft px-4">
+          <Car className="h-8 w-8 text-accent-yellow" strokeWidth={1.5} />
           <div>
             <h1 className="text-base font-semibold text-text-primary">Мессенджер</h1>
-            <p className="text-xs text-text-tertiary">Парк Онлайн</p>
+            <p className="text-xs text-text-muted">Парк Онлайн</p>
           </div>
         </div>
 
         {/* Main Navigation */}
-        <nav className="flex-1 space-y-1 px-2 py-4">
+        <nav className="flex-1 space-y-0.5 px-2 py-4">
           {navigation.map((item) => (
             <NavLink
               key={item.id}
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  'group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  'group relative flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-brand-yellow-primary text-black'
-                    : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+                    ? 'bg-bg-hover text-text-primary'
+                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                 )
               }
             >
-              <div className="flex items-center gap-3">
-                <item.icon className="h-5 w-5" strokeWidth={1.5} />
-                {item.label}
-              </div>
-              {item.badge && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-semantic-error px-1.5 text-xs font-medium text-white">
-                  {item.badge}
-                </span>
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 h-8 w-0.5 -translate-y-1/2 rounded-r-full bg-accent-yellow" />
+                  )}
+                  <div className="flex items-center gap-3">
+                    <item.icon
+                      className={cn('h-5 w-5 transition-colors', isActive ? 'text-accent-yellow' : '')}
+                      strokeWidth={1.5}
+                    />
+                    {item.label}
+                  </div>
+                  {item.badge && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-semantic-error px-1.5 text-xs font-medium text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </NavLink>
           ))}
         </nav>
 
         {/* Secondary Navigation */}
-        <nav className="border-t border-border-default px-2 py-4">
+        <nav className="border-t border-border-soft px-2 py-4">
           {secondaryNavigation.map((item) => (
             <NavLink
               key={item.id}
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-brand-yellow-primary text-black'
-                    : 'text-text-secondary hover:bg-background-tertiary hover:text-text-primary'
+                    ? 'bg-bg-hover text-text-primary'
+                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                 )
               }
             >
-              <item.icon className="h-5 w-5" strokeWidth={1.5} />
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 h-8 w-0.5 -translate-y-1/2 rounded-r-full bg-accent-yellow" />
+                  )}
+                  <item.icon
+                    className={cn('h-5 w-5 transition-colors', isActive ? 'text-accent-yellow' : '')}
+                    strokeWidth={1.5}
+                  />
+                  {item.label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
         {/* User Profile */}
-        <div className="border-t border-border-default p-4">
+        <div className="border-t border-border-soft p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background-tertiary text-sm font-medium text-text-secondary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-elevated text-sm font-medium text-text-secondary">
               Д
             </div>
             <div className="flex-1 overflow-hidden">
               <p className="truncate text-sm font-medium text-text-primary">Дмитрий</p>
-              <p className="truncate text-xs text-text-tertiary">Водитель • Комфорт</p>
+              <p className="truncate text-xs text-text-muted">Водитель • Комфорт</p>
             </div>
           </div>
         </div>

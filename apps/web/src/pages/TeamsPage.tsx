@@ -158,7 +158,7 @@ interface TeamCardProps {
 
 function TeamCard({ team }: TeamCardProps) {
   return (
-    <Card className="group overflow-hidden border-border-soft bg-bg-elevated transition-all duration-200 hover:border-border-default hover:bg-bg-hover hover:shadow-md">
+    <Card className="group overflow-hidden border-border-soft bg-bg-elevated transition-all duration-200 hover:border-border-subtle hover:bg-bg-hover hover:shadow-md">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           {/* Department Avatar */}

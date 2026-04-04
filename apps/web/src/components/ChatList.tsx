@@ -17,6 +17,7 @@ import {
   Plus,
   Archive,
   Users,
+  Pencil,
 } from 'lucide-react';
 import type { Chat } from '../types/chat';
 import type { ChatCategory } from '../types/chat';
@@ -74,7 +75,7 @@ export function ChatList({
   }, [chats]);
 
   return (
-    <div className="flex h-full flex-col bg-bg-panel">
+    <div className="relative flex h-full flex-col bg-bg-panel">
       {/* Header */}
       <div className="flex h-14 items-center justify-between border-b border-border-soft px-4">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
@@ -272,14 +273,6 @@ export function ChatList({
         <div className="space-y-1">
           <Button
             variant="ghost"
-            className="w-full justify-start text-text-secondary hover:text-text-primary hover:bg-bg-hover"
-            onClick={() => setIsNewChatModalOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Новый чат
-          </Button>
-          <Button
-            variant="ghost"
             disabled
             className="w-full justify-start text-text-muted opacity-50 cursor-not-allowed"
             title="В разработке"
@@ -297,6 +290,18 @@ export function ChatList({
           </Button>
         </div>
       </div>
+
+      {/* FAB — New Chat (Telegram-style) */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsNewChatModalOpen(true)}
+        className="absolute bottom-16 right-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-accent-yellow text-black shadow-lg transition-shadow hover:shadow-xl"
+        aria-label="Новый чат"
+        title="Новый чат"
+      >
+        <Pencil className="h-6 w-6" />
+      </motion.button>
 
       {/* New Chat Modal */}
       <NewChatModal

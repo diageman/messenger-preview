@@ -366,7 +366,7 @@ function SignalCard({ signal, type, TypeIcon, priority, isSelected, onSelect, on
           'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors',
           isSelected
             ? 'border-accent-yellow bg-accent-yellow text-black'
-            : 'border-border-default text-transparent hover:border-border-default'
+            : 'border-border-soft text-transparent hover:border-border-subtle'
         )}
       >
         <CheckCheck className="h-3.5 w-3.5" />

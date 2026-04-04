@@ -166,7 +166,7 @@ export function SettingsPage() {
                         <div className="mt-1 flex items-center gap-2 text-sm text-text-muted">
                           <Briefcase className="h-3.5 w-3.5" />
                           {profileWithDept.role}
-                          <span className="text-text-tertiary">•</span>
+                          <span className="text-text-muted">•</span>
                           <LayoutGrid className="h-3.5 w-3.5" />
                           {profileWithDept.department}
                         </div>
@@ -758,7 +758,7 @@ function Select({ value, onChange, options }: SelectProps) {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-8 items-center gap-2 rounded-md border border-border-soft bg-bg-panel px-2 text-xs text-text-secondary hover:border-border-default focus:border-accent-yellow focus:outline-none"
+        className="flex h-8 items-center gap-2 rounded-md border border-border-soft bg-bg-panel px-2 text-xs text-text-secondary hover:border-border-subtle focus:border-accent-yellow focus:outline-none"
       >
         {selectedOption?.label}
         <ChevronDown className="h-3 w-3" />
@@ -807,7 +807,7 @@ function SegmentedButton({ active, onClick, icon: Icon, label, compact = false }
         'flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all',
         active
           ? 'border-accent-yellow/30 bg-accent-yellow/10 text-accent-yellow'
-          : 'border-border-soft bg-bg-panel text-text-secondary hover:border-border-default hover:text-text-primary',
+          : 'border-border-soft bg-bg-panel text-text-secondary hover:border-border-subtle hover:text-text-primary',
         compact && 'px-2'
       )}
     >

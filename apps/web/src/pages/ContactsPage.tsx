@@ -118,7 +118,7 @@ export function ContactsPage() {
             {onlineCount} онлайн
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-border-default"></span>
+            <span className="h-2 w-2 rounded-full bg-text-muted"></span>
             {total - onlineCount} оффлайн
           </span>
         </div>
@@ -201,7 +201,7 @@ function ContactCard({ contact, onStartChat, isCreating }: ContactCardProps) {
   return (
     <div
       className={cn(
-        'group overflow-hidden rounded-xl border border-border-soft bg-bg-elevated p-4 transition-all duration-200 hover:border-border-default hover:bg-bg-hover'
+        'group overflow-hidden rounded-xl border border-border-soft bg-bg-elevated p-4 transition-all duration-200 hover:border-border-subtle hover:bg-bg-hover'
       )}
     >
       <div className="flex items-start gap-3">

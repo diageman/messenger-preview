@@ -4,8 +4,8 @@ import { Avatar } from '@messenger/ui';
 import { Button } from '@messenger/ui';
 import { ScrollArea } from '@messenger/ui';
 import { motion } from 'framer-motion';
-import { Send, Paperclip, Smile, MessageSquare } from 'lucide-react';
-import type { Message } from '../types/chat';
+import { Send, Paperclip, Smile, MessageSquare, Check, CheckCheck } from 'lucide-react';
+import type { Message, MessageStatus } from '../types/chat';
 import { getChatAvatarData } from '../lib/chatAvatar';
 import { useChatStore } from '../stores/useChatStore';
 import { useAuth } from '../hooks/chats/useChatsZustand';
@@ -29,6 +29,25 @@ export interface ChatWindowProps {
 }
 
 const EMPTY_TYPING_USERS: string[] = [];
+
+// ===== HELPERS =====
+function formatDateSeparator(dateStr: string): string {
+  const today = new Date();
+  const date = new Date(dateStr);
+  const todayStr = today.toISOString().slice(0, 10);
+  const yesterdayStr = new Date(today.getTime() - 86400000).toISOString().slice(0, 10);
+  const dateOnly = date.toISOString().slice(0, 10);
+  if (dateOnly === todayStr) return 'Сегодня';
+  if (dateOnly === yesterdayStr) return 'Вчера';
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+function ReadReceipt({ status }: { status?: MessageStatus }) {
+  if (!status || status === 'sending') return null;
+  if (status === 'sent') return <Check className="h-3.5 w-3.5 text-text-muted" />;
+  if (status === 'delivered') return <CheckCheck className="h-3.5 w-3.5 text-text-muted" />;
+  return <CheckCheck className="h-3.5 w-3.5 text-text-link" />;
+}
 
 export function ChatWindow({
   chatId,
@@ -210,41 +229,54 @@ export function ChatWindow({
         {/* Messages */}
         <ScrollArea className="flex-1 p-3" onScroll={handleScroll}>
           <div className="space-y-2">
-            {messages.map((message) => (
-              <motion.div
-                key={message.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cn(
-                  'flex',
-                  message.isOwn ? 'justify-end' : 'justify-start'
-                )}
-              >
-                {!message.isOwn && message.sender && (
-                  <Avatar
-                    size="sm"
-                    fallback={message.sender.avatar}
-                    className="mr-2"
-                  />
-                )}
-                <div
-                  className={cn(
-                    'max-w-[65%] rounded-xl px-3 py-2',
-                    message.isOwn
-                      ? 'bg-accent-yellow text-black rounded-br-md'
-                      : 'bg-bg-panel text-text-primary rounded-bl-md'
+            {messages.map((message, index) => {
+              const prevDate = index > 0 ? messages[index - 1].date : null;
+              const showDateSeparator = message.date !== prevDate;
+              return (
+                <React.Fragment key={message.id}>
+                  {showDateSeparator && (
+                    <div className="flex items-center justify-center py-3">
+                      <span className="rounded-full bg-bg-elevated px-3 py-1 text-xs font-medium text-text-muted">
+                        {formatDateSeparator(message.date)}
+                      </span>
+                    </div>
                   )}
-                >
-                  <p className="text-sm">{message.content}</p>
-                  <p className={cn(
-                    'mt-1 text-xs',
-                    message.isOwn ? 'text-black/60' : 'text-text-muted'
-                  )}>
-                    {message.timestamp}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      'flex',
+                      message.isOwn ? 'justify-end' : 'justify-start'
+                    )}
+                  >
+                    {!message.isOwn && message.sender && (
+                      <Avatar
+                        size="sm"
+                        fallback={message.sender.avatar}
+                        className="mr-2"
+                      />
+                    )}
+                    <div
+                      className={cn(
+                        'max-w-[65%] rounded-xl px-3 py-2',
+                        message.isOwn
+                          ? 'bubble-outgoing'
+                          : 'bubble-incoming'
+                      )}
+                    >
+                      <p className="text-sm">{message.content}</p>
+                      <div className={cn(
+                        'mt-1 flex items-center gap-1',
+                        message.isOwn ? 'justify-end' : ''
+                      )}>
+                        <span className="text-xs text-text-muted">{message.timestamp}</span>
+                        {message.isOwn && <ReadReceipt status={message.status} />}
+                      </div>
+                    </div>
+                  </motion.div>
+                </React.Fragment>
+              );
+            })}
             {/* Auto-scroll anchor */}
             <div ref={messagesEndRef} />
           </div>
@@ -273,12 +305,13 @@ export function ChatWindow({
             </Button>
             <Button
               type="submit"
+              variant="ghost"
               size="icon"
               className={cn(
-                'h-10 w-10 shrink-0 transition-all duration-200',
+                'h-10 w-10 shrink-0 transition-colors',
                 messageText.trim()
-                  ? 'bg-accent-yellow text-black hover:bg-accent-yellow/90'
-                  : 'bg-bg-elevated text-text-muted hover:text-text-secondary'
+                  ? 'text-text-primary hover:text-accent-yellow'
+                  : 'text-text-muted hover:text-text-secondary'
               )}
               disabled={!messageText.trim()}
               title="Отправить"

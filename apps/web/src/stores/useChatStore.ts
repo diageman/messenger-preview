@@ -147,10 +147,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
       set({ chats: updated });
 
-      // 2. Отправка в БД самого свежего времени сообщения из этого чата
-      const currentChat = chats.find(c => c.id === chatId);
-      const lastMsgAt = currentChat?.lastMessageAt || new Date().toISOString();
-      void get().markChatRead(chatId, lastMsgAt);
+      // 2. Всегда помечаем как прочитанное на ТЕКУЩИЙ момент времени
+      void get().markChatRead(chatId, new Date().toISOString());
     }
   },
 
@@ -176,45 +174,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   /**
-   * Realtime INSERT чужого сообщения — ЗДЕСЬ меняется unreadCount
+   * Realtime INSERT чужого сообщения — здесь мы обновляем и список чатов, и сообщения
    */
-  applyIncomingMessage: (message) => {
-    const { chats, selectedChatId, messages: allMessages } = get();
+  applyIncomingMessage: (message: Message) => {
+    // ВАЖНО: Достаем messages прямо здесь, чтобы не было ReferenceError
+    const { chats, selectedChatId, messages, fetchChats, markChatRead } = get();
     const { currentUserId } = useAuthStore.getState();
 
-    // 1. Проверяем, кто прислал. Сравниваем напрямую IDs.
     const isOwn = message.sender_id === currentUserId;
     const isChatActive = selectedChatId === message.chat_id;
     const isTabVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
 
-    // Лог для отладки конкретного аккаунта
-    if (currentUserId === 'd0ced572-9909-428f-8d70-6266bf3e0d1f' || message.sender_id === 'd0ced572-9909-428f-8d70-6266bf3e0d1f') {
-      console.log(`[DEBUG-CHEREVKO] Msg: ${message.id}, Sender: ${message.sender_id}, Me: ${currentUserId}, isOwn: ${isOwn}, Active: ${isChatActive}`);
-    }
+    console.log(`[Realtime] Сообщение в чате ${message.chat_id}. Активен: ${isChatActive}`);
 
     const chatIndex = chats.findIndex((c) => c.id === message.chat_id);
     
-    // 2. Если чата нет — тянем заново из БД
+    // Если чата нет в списке (например, новый диалог), тянем всё заново
     if (chatIndex === -1) {
-      get().fetchChats();
+      fetchChats();
       return;
     }
 
-    // 3. Подготавливаем обновленный список чатов
     const updatedChats = [...chats];
     const oldChat = updatedChats[chatIndex];
 
-    // 4. Логика счетчика
+    // Логика счетчика непрочитанных
     let newUnread = oldChat.unreadCount || 0;
     if (isOwn || (isChatActive && isTabVisible)) {
       newUnread = 0;
       if (isChatActive && !isOwn) {
-        void get().markChatRead(message.chat_id, message.created_at);
+        void markChatRead(message.chat_id, message.created_at);
       }
     } else {
       newUnread = newUnread + 1;
     }
 
+    // Обновляем данные конкретного чата для списка
     const updatedChat = {
       ...oldChat,
       unreadCount: newUnread,
@@ -222,20 +217,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       lastMessageText: message.content,
       lastMessageAt: message.created_at,
       updated_at: message.created_at,
-      // Сохраняем сообщение внутри чата для триггера useMemo на странице
-      messages: [...(oldChat.messages || []), message]
+      // Сохраняем и внутри объекта чата (для списка)
+      messages: [...(Array.isArray(oldChat.messages) ? oldChat.messages : []), message]
     };
 
-    // 5. Перемещаем чат в начало списка
+    // Перемещаем чат наверх списка
     updatedChats.splice(chatIndex, 1);
-    updatedChats.unshift(updatedChat);
+    updatedChats.unshift({ ...updatedChat, updated_at: new Date().toISOString() });
 
-    // 6. Обновляем и чаты, и сообщения одним махом
-    const currentMsgs = allMessages[message.chat_id] || [];
-    const nextMessages = currentMsgs.some((m: Message) => m.id === message.id) 
-      ? allMessages 
-      : { ...allMessages, [message.chat_id]: [...currentMsgs, message] };
+    // Обновляем глобальный объект сообщений (Record<chatId, Message[]>)
+    const currentMsgs = messages[message.chat_id] || [];
+    const isDuplicate = currentMsgs.some((m) => m.id === message.id);
+    
+    const nextMessages = isDuplicate 
+      ? messages 
+      : { ...messages, [message.chat_id]: [...currentMsgs, message] };
 
+    // Применяем изменения в стор
     set({ 
       chats: updatedChats, 
       messages: nextMessages 
@@ -246,7 +244,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const messageTime = new Date(message.created_at).getTime();
     
     // ЖЕСТКИЙ БЛОК: Молчим первые 10 секунд сессии в любом случае
-    const isAfterGracePeriod = (now - appStartTime) > 10000; 
+    const isAfterGracePeriod = (Date.now() - appStartTime) > 10000; 
     const isCreatedLive = messageTime > appStartTime;
     const isTrulyNew = !initialMessageIds.has(message.id);
 
@@ -379,85 +377,78 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
 
-      // Загружаем чаты с последними сообщениями и данными о прочтении
+      // 1. Сначала тянем чаты и сообщения
       const { data, error } = await supabase
         .from('chats')
-        .select(
-          `
+        .select(`
           *,
           chat_members!inner (
-            user_id,
-            role,
-            profiles:user_id (
-              id,
-              full_name,
-              email,
-              avatar_url,
-              status,
-              role
-            )
+            user_id, role,
+            profiles:user_id (id, full_name, email, avatar_url, status, role)
           ),
-          messages (
-            id,
-            content,
-            sender_id,
-            created_at
-          ).order('created_at', { ascending: false }).limit(200),
-          chat_reads (
-            user_id,
-            last_read_at
-          )
-        `
-        )
+          messages (id, content, sender_id, created_at)
+          .order('created_at', { ascending: false }).limit(200)
+        `)
         .in('id', chatIds)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
+      // 2. ОТДЕЛЬНО и ПРЯМО тянем прочтения для ТЕКУЩЕГО пользователя
+      const { data: allReads, error: readError } = await supabase
+        .from('chat_reads')
+        .select('chat_id, last_read_at')
+        .eq('user_id', currentUserId);
+
+      if (readError) console.error('[DEBUG] Ошибка загрузки прочтений:', readError);
+      console.log('[DEBUG-FETCH] Всего прочтений в базе для юзера:', allReads?.length);
+
       // Формируем snapshot с unreadCount для ТЕКУЩЕГО пользователя
       const formattedChats: ChatItem[] = (data || []).map((chat: any) => {
-        const messages = chat.messages || [];
-        const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
-        const myRead = chat.chat_reads?.find(
-          (r: any) => r.user_id === currentUserId
+        // Гарантируем, что сообщения — это массив
+        const rawMessages = Array.isArray(chat.messages) ? chat.messages : [];
+        
+        // Сортируем: новые сверху
+        const sortedMsgs = [...rawMessages].sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
-
-        // Считаем непрочитанные: строго сообщения других пользователей после даты прочтения
+        
+        const lastMsg = sortedMsgs.length > 0 ? sortedMsgs[0] : null;
+        const myRead = allReads?.find(r => r.chat_id === chat.id);
         const lastReadTime = myRead ? new Date(myRead.last_read_at).getTime() : 0;
         
-        const unreadMsgs = messages.filter((m: any) => {
+        const unreadMsgs = sortedMsgs.filter((m: any) => {
           const isNotMe = m.sender_id !== currentUserId;
           const isNewer = new Date(m.created_at).getTime() > lastReadTime;
-          return isNotMe && isNewer;
+          return isNotMe && (isNewer || lastReadTime === 0);
         });
-
-        const initialUnread = unreadMsgs.length;
-
-        // Лог для диагностики аккаунта Dmitry Cherevko
-        if (currentUserId === 'd0ced572-9909-428f-8d70-6266bf3e0d1f') {
-          console.log(`[INIT-DEBUG] Chat: ${chat.name || chat.id}, LastRead: ${new Date(lastReadTime).toISOString()}, FoundUnread: ${initialUnread}`);
-        }
 
         return {
           ...chat,
-          unreadCount: safeUnread(initialUnread),
+          unreadCount: safeUnread(unreadMsgs.length),
           lastMessageId: lastMsg?.id ?? null,
           lastMessageText: lastMsg?.content ?? null,
           lastMessageAt: lastMsg?.created_at ?? null,
+          messages: sortedMsgs
         };
       });
 
-      // Собираем все ID сообщений из снимка базы для дедупликации уведомлений
+      // 3. Синхронизируем сообщения с глобальным хранилищем Record<chatId, Message[]>
+      const messagesMap: Record<string, any[]> = {};
       const allInitialIds = new Set<string>();
+
       formattedChats.forEach(chat => {
-        chat.messages?.forEach(m => allInitialIds.add(m.id));
+        const chatMsgs = chat.messages || [];
+        messagesMap[chat.id] = chatMsgs;
+        chatMsgs.forEach((m: any) => allInitialIds.add(m.id));
       });
 
       set({ 
         chats: formattedChats, 
+        messages: { ...get().messages, ...messagesMap },
         loading: false, 
         isInitialized: true,
-        isDataLoaded: true, // Теперь уведомления разрешены
+        isDataLoaded: true,
         initialMessageIds: allInitialIds
       });
     } catch (err: any) {

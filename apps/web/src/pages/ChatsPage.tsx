@@ -144,6 +144,26 @@ export function ChatsPage() {
     await sendMessage(content);
   };
 
+  // Трансформируем сообщения из формата store в формат ChatWindow
+  const transformedMessages = useMemo(() => {
+    return (messages || []).map((msg: any) => {
+      const createdAt = msg.created_at || '';
+      const date = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : '';
+      const time = createdAt
+        ? new Date(createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      return {
+        ...msg,
+        date,
+        timestamp: time,
+        sender: msg.sender ? {
+          ...msg.sender,
+          avatar: msg.sender.avatar_url || msg.sender.full_name?.[0] || '?',
+        } : undefined,
+      };
+    });
+  }, [messages]);
+
   // =====================================================
   // 5. EARLY RETURNS (AFTER ALL HOOKS)
   // =====================================================
@@ -201,7 +221,7 @@ export function ChatsPage() {
         <div className="flex-1 overflow-hidden">
           <ChatWindow
             chatId={selectedChatId}
-            messages={messages}
+            messages={transformedMessages}
             onSendMessage={handleSendMessage}
             chatName={selectedChatName}
             chatDescription={selectedChatDescription}
