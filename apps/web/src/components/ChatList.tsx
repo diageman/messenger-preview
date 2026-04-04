@@ -17,6 +17,8 @@ import {
   Archive,
   Users,
   Pencil,
+  Trash2,
+  MoreVertical,
 } from 'lucide-react';
 import type { Chat } from '../types/chat';
 import type { ChatCategory } from '../types/chat';
@@ -47,6 +49,7 @@ export interface ChatListProps {
   isSearchOpen: boolean;
   onSearchOpenChange: (open: boolean) => void;
   unreadTotal: number;
+  onDeleteChat?: (chatId: string) => void;
 }
 
 export function ChatList({
@@ -60,6 +63,7 @@ export function ChatList({
   isSearchOpen,
   onSearchOpenChange,
   unreadTotal,
+  onDeleteChat,
 }: ChatListProps) {
   const navigate = useNavigate();
   const [isNewChatModalOpen, setIsNewChatModalOpen] = React.useState(false);
@@ -180,6 +184,7 @@ export function ChatList({
                     chat={chat}
                     isSelected={selectedChatId === chat.id}
                     onSelect={() => onSelectChat(chat.id)}
+                    onDeleteChat={onDeleteChat}
                     delay={index * 0.03}
                   />
                 ))}
@@ -203,6 +208,7 @@ export function ChatList({
                     chat={chat}
                     isSelected={selectedChatId === chat.id}
                     onSelect={() => onSelectChat(chat.id)}
+                    onDeleteChat={onDeleteChat}
                     delay={index * 0.03}
                   />
                 ))}
@@ -226,6 +232,7 @@ export function ChatList({
                     chat={chat}
                     isSelected={selectedChatId === chat.id}
                     onSelect={() => onSelectChat(chat.id)}
+                    onDeleteChat={onDeleteChat}
                     delay={index * 0.03}
                   />
                 ))}
@@ -316,16 +323,40 @@ interface ChatListItemProps {
   chat: ChatWithPeer;
   isSelected: boolean;
   onSelect: () => void;
+  onDeleteChat?: (chatId: string) => void;
   delay?: number;
 }
 
-function ChatListItem({ chat, isSelected, onSelect, delay = 0 }: ChatListItemProps) {
+function ChatListItem({ chat, isSelected, onSelect, onDeleteChat, delay = 0 }: ChatListItemProps) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close menu on click outside
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
+
+  const handleDelete = () => {
+    setMenuOpen(false);
+    if (!onDeleteChat) return;
+    const confirmed = window.confirm(`Удалить диалог с «${chat.name}»?`);
+    if (confirmed) {
+      onDeleteChat(chat.id);
+    }
+  };
+
   return (
-    <motion.button
+    <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay }}
-      onClick={onSelect}
       className={cn(
         'group relative flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors duration-200',
         isSelected
@@ -340,54 +371,103 @@ function ChatListItem({ chat, isSelected, onSelect, delay = 0 }: ChatListItemPro
         <div className="absolute left-0 top-1/2 h-8 w-0.5 -translate-y-1/2 rounded-r-full bg-accent-yellow" />
       )}
 
-      {/* Avatar */}
-      <div className="relative shrink-0">
-        {chat.type === 'direct' ? (
-          <Avatar
-            size="md"
-            fallback={chat.peerAvatar || '?'}
-            status={chat.peerStatus as 'online' | 'busy' | 'away' | 'offline' | undefined}
-            showStatus
-          />
-        ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-elevated text-sm font-bold text-text-secondary">
-            {chat.participants.slice(0, 2).map((p: any) => p.avatar[0]).join('')}
-          </div>
-        )}
-        {chat.isPinned && (
-          <Pin
-            className="absolute -right-0.5 -top-0.5 h-3 w-3 text-accent-yellow"
-            aria-label="Закреплённый чат"
-          />
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="flex items-center justify-between">
-          <span className="truncate text-sm font-medium text-text-primary">
-            {chat.name}
-          </span>
-          <span className="shrink-0 text-xs text-text-muted">{chat.timestamp}</span>
-        </div>
-        {chat.description && (
-          <p className="mt-0.5 truncate text-xs text-text-muted">{chat.description}</p>
-        )}
-        <div className="mt-1 flex items-center justify-between">
-          <span className="truncate text-sm text-text-secondary">
-            {chat.lastMessage}
-          </span>
-          {chat.unreadCount > 0 && (
-            <span
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-yellow text-[10px] font-bold text-black shadow-sm"
-              style={{ minWidth: '1.25rem' }}
-              aria-label={`${chat.unreadCount} непрочитанных сообщений`}
-            >
-              {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
-            </span>
+      {/* Clickable area */}
+      <button
+        onClick={() => { if (!menuOpen) onSelect(); }}
+        className="flex flex-1 items-start gap-3 text-left min-w-0"
+      >
+        {/* Avatar */}
+        <div className="relative shrink-0">
+          {chat.type === 'direct' ? (
+            <Avatar
+              size="md"
+              fallback={chat.peerAvatar || '?'}
+              status={chat.peerStatus as 'online' | 'busy' | 'away' | 'offline' | undefined}
+              showStatus
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-elevated text-sm font-bold text-text-secondary">
+              {chat.participants.slice(0, 2).map((p: any) => p.avatar[0]).join('')}
+            </div>
+          )}
+          {chat.isPinned && (
+            <Pin
+              className="absolute -right-0.5 -top-0.5 h-3 w-3 text-accent-yellow"
+              aria-label="Закреплённый чат"
+            />
           )}
         </div>
-      </div>
-    </motion.button>
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="truncate text-sm font-medium text-text-primary">
+              {chat.name}
+            </span>
+            <span className="shrink-0 text-xs text-text-muted">{chat.timestamp}</span>
+          </div>
+          {chat.description && (
+            <p className="mt-0.5 truncate text-xs text-text-muted">{chat.description}</p>
+          )}
+          <div className="mt-1 flex items-center justify-between">
+            <span className="truncate text-sm text-text-secondary">
+              {chat.lastMessage}
+            </span>
+            {chat.unreadCount > 0 && (
+              <span
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-yellow text-[10px] font-bold text-black shadow-sm"
+                style={{ minWidth: '1.25rem' }}
+                aria-label={`${chat.unreadCount} непрочитанных сообщений`}
+              >
+                {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+
+      {/* Context menu button */}
+      {onDeleteChat && (
+        <div ref={menuRef} className="relative shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
+              menuOpen
+                ? 'bg-bg-hover text-text-primary'
+                : 'text-text-muted opacity-0 group-hover:opacity-100 hover:bg-bg-hover hover:text-text-primary'
+            )}
+            aria-label="Действия с чатом"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+
+          {/* Dropdown menu */}
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                transition={{ duration: 0.12 }}
+                className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-lg border border-border-soft bg-bg-panel shadow-lg"
+                role="menu"
+              >
+                <button
+                  onClick={handleDelete}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10"
+                  role="menuitem"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Удалить диалог
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+    </motion.div>
   );
 }

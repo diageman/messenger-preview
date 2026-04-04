@@ -2,7 +2,7 @@ import { cn } from '@messenger/ui';
 import { TopBar } from '../components/TopBar';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
-import { useMessages, useAuth, useChats } from '../hooks/chats/useChatsZustand';
+import { useMessages, useAuth, useChats, useChatActions } from '../hooks/chats/useChatsZustand';
 import { useResizable } from '../hooks/useResizable';
 import { useState, useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
@@ -14,7 +14,8 @@ export function ChatsPage() {
   // =====================================================
   const { profile } = useAuth();
   // Подключаем основной хук чатов, чтобы инициировать загрузку данных
-  useChats(); 
+  useChats();
+  const { deleteChat } = useChatActions(); 
   
   const chats = useChatStore((state) => state.chats);
   const loading = useChatStore((state) => state.loading);
@@ -205,6 +206,7 @@ export function ChatsPage() {
             isSearchOpen={false}
             onSearchOpenChange={() => {}}
             unreadTotal={unreadTotal}
+            onDeleteChat={deleteChat}
           />
 
           {!chatListResizer.isCollapsed && (

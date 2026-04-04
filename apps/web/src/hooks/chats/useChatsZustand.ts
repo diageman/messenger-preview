@@ -186,8 +186,16 @@ export function useChatActions() {
     [profile]
   );
 
+  const deleteChat = React.useCallback(
+    async (chatId: string) => {
+      await useChatStore.getState().deleteChat(chatId);
+    },
+    []
+  );
+
   return {
     createDirectChat,
+    deleteChat,
   };
 }
 

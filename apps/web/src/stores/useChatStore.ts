@@ -111,6 +111,9 @@ interface ChatState {
   markChatRead: (chatId: string, lastReadAt: string) => Promise<void>;
   sendTypingStatus: (chatId: string, userName: string) => void;
 
+  // Chat deletion
+  deleteChat: (chatId: string) => Promise<void>;
+
   // Realtime subscription management
   initRealtime: () => void;
 }
@@ -510,6 +513,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
       }
     });
+  },
+
+  // ====== DELETE CHAT ======
+
+  deleteChat: async (chatId: string) => {
+    const { selectedChatId } = get();
+
+    try {
+      const { error } = await supabase.rpc('leave_chat', { p_chat_id: chatId });
+      if (error) throw error;
+
+      // Remove from local state
+      set((state) => ({
+        chats: state.chats.filter((c) => c.id !== chatId),
+        messages: { ...state.messages, [chatId]: undefined },
+        selectedChatId: selectedChatId === chatId ? null : selectedChatId,
+      }));
+    } catch (err: any) {
+      console.error('[ChatStore] deleteChat error:', err);
+      throw err;
+    }
   },
 
   // ====== REALTIME SUBSCRIPTIONS ======
