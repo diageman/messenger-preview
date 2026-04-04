@@ -255,3 +255,50 @@ textarea.message-input:active {
 .message-input::placeholder {
   color: var(--color-text-muted);
 }
+
+/* ===== SETTINGS: TEXT SIZE ===== */
+html[data-text-size="small"] { font-size: 13px; }
+html[data-text-size="medium"] { font-size: 14px; }
+html[data-text-size="large"] { font-size: 16px; }
+
+/* ===== SETTINGS: DENSITY — COMPACT ===== */
+html[data-density="compact"] .chat-item { padding: 6px 10px; margin: 1px 6px; }
+html[data-density="compact"] .chat-item .text-sm { font-size: 12px; }
+html[data-density="compact"] .chat-item .text-xs { font-size: 11px; }
+html[data-density="compact"] [class*="h-14"] { height: 40px; }
+html[data-density="compact"] [class*="h-16"] { height: 48px; }
+html[data-density="compact"] .bubble-incoming,
+html[data-density="compact"] .bubble-outgoing { padding: 6px 10px; }
+html[data-density="compact"] .message-input { padding: 6px 12px; border-radius: 16px; }
+html[data-density="compact"] nav a { padding-top: 6px; padding-bottom: 6px; font-size: 13px; }
+
+/* ===== SETTINGS: DENSITY — SPACIOUS ===== */
+html[data-density="spacious"] .chat-item { padding: 14px 14px; margin: 3px 10px; }
+html[data-density="spacious"] .chat-item .text-sm { font-size: 15px; }
+html[data-density="spacious"] .chat-item .text-xs { font-size: 13px; }
+html[data-density="spacious"] [class*="h-14"] { height: 60px; }
+html[data-density="spacious"] [class*="h-16"] { height: 72px; }
+html[data-density="spacious"] .bubble-incoming,
+html[data-density="spacious"] .bubble-outgoing { padding: 12px 16px; }
+html[data-density="spacious"] .message-input { padding: 14px 20px; border-radius: 24px; }
+html[data-density="spacious"] nav a { padding-top: 12px; padding-bottom: 12px; font-size: 15px; }
+
+/* ===== SETTINGS: NO ANIMATIONS ===== */
+html[data-animations="false"] *,
+html[data-animations="false"] *::before,
+html[data-animations="false"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ===== SETTINGS: HIDE AVATARS ===== */
+html[data-show-avatars="false"] .relative.shrink-0 {
+  display: none;
+}
+
+/* ===== SETTINGS: THEME SYSTEM (prep for light theme) ===== */
+html[data-theme="system"] {
+  color-scheme: dark;
+}

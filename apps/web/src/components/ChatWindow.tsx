@@ -9,6 +9,7 @@ import type { Message, MessageStatus } from '../types/chat';
 import { getChatAvatarData } from '../lib/chatAvatar';
 import { useChatStore } from '../stores/useChatStore';
 import { useAuth } from '../hooks/chats/useChatsZustand';
+import { useSettings } from '../hooks/useSettings';
 
 // ===== MAIN COMPONENT =====
 export interface ChatWindowProps {
@@ -62,6 +63,7 @@ export function ChatWindow({
 }: ChatWindowProps) {
   const [messageText, setMessageText] = React.useState('');
   const { profile } = useAuth();
+  const { chats: chatSettings } = useSettings();
   const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
   const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || EMPTY_TYPING_USERS);
   const lastTypingTime = React.useRef<number>(0);
@@ -120,11 +122,11 @@ export function ChatWindow({
   };
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend) {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend]);
+  }, [handleSend, chatSettings.enterToSend]);
 
   // Compute chat display data from props using unified helper
   const avatarData = getChatAvatarData(

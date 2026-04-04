@@ -41,10 +41,30 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useSettings } from '../hooks/useSettings';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@messenger/ui';
 
+// ===== HELPERS =====
+function yearWord(n: number): string {
+  const abs = Math.abs(n) % 100;
+  const n1 = abs % 10;
+  if (abs > 10 && abs < 20) return 'лет';
+  if (n1 > 1 && n1 < 5) return 'года';
+  if (n1 === 1) return 'год';
+  return 'лет';
+}
+
+function monthWord(n: number): string {
+  const abs = Math.abs(n) % 100;
+  const n1 = abs % 10;
+  if (abs > 10 && abs < 20) return 'месяцев';
+  if (n1 > 1 && n1 < 5) return 'месяца';
+  if (n1 === 1) return 'месяц';
+  return 'месяцев';
+}
+
 export function SettingsPage() {
-  const { profile: authProfile, updateProfile } = useAuth();
+  const { profile: authProfile, updateProfile, signOut } = useAuth();
   const {
     notifications,
     appearance,
@@ -73,11 +93,7 @@ export function SettingsPage() {
     updated_at: ''
   };
 
-  // Для совместимости с UI создаём alias с department
-  const profileWithDept = {
-    ...profile,
-    department: '', // department пока не загружается из Supabase
-  };
+  // department загружается из Supabase через department_members
 
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
   const [editedProfile, setEditedProfile] = React.useState({
@@ -88,6 +104,81 @@ export function SettingsPage() {
   });
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [stats, setStats] = React.useState({
+    yearsInCompany: '—',
+    messageCount: '—',
+    contactCount: '—',
+    office: '—',
+  });
+  const [department, setDepartment] = React.useState<string>('');
+
+  // Fetch real statistics from Supabase
+  React.useEffect(() => {
+    if (!authProfile?.id) return;
+
+    async function fetchStats() {
+      try {
+        // Calculate tenure from created_at
+        if (authProfile.created_at) {
+          const createdAt = new Date(authProfile.created_at);
+          const diffDays = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+          const years = Math.floor(diffDays / 365.25);
+          const months = Math.floor((diffDays % 365.25) / 30.44);
+          setStats(prev => ({
+            ...prev,
+            yearsInCompany: years > 0
+              ? `${years} ${yearWord(years)}`
+              : `${months} ${monthWord(months)}`,
+          }));
+        }
+
+        // Count messages sent by user
+        const { count: msgCount } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_id', authProfile.id);
+        setStats(prev => ({
+          ...prev,
+          messageCount: msgCount != null ? msgCount.toLocaleString('ru-RU') : '0',
+        }));
+
+        // Count contacts (other users in same organization)
+        const { count: contactCount } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', authProfile.organization_id)
+          .neq('id', authProfile.id);
+        setStats(prev => ({
+          ...prev,
+          contactCount: contactCount != null ? contactCount.toLocaleString('ru-RU') : '0',
+        }));
+
+        // Get organization name for office
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', authProfile.organization_id)
+          .single();
+        if (orgData?.name) {
+          setStats(prev => ({ ...prev, office: orgData.name }));
+        }
+
+        // Get department name
+        const { data: deptData } = await supabase
+          .from('department_members')
+          .select('departments(name)')
+          .eq('user_id', authProfile.id)
+          .single();
+        if (deptData?.departments) {
+          setDepartment((deptData.departments as any).name || '');
+        }
+      } catch (err) {
+        console.error('[Settings] Failed to fetch stats:', err);
+      }
+    }
+
+    fetchStats();
+  }, [authProfile?.id, authProfile?.created_at, authProfile?.organization_id]);
 
   React.useEffect(() => {
     setEditedProfile({
@@ -165,10 +256,10 @@ export function SettingsPage() {
                         <h2 className="text-xl font-bold text-text-primary">{profile.full_name || 'Пользователь'}</h2>
                         <div className="mt-1 flex items-center gap-2 text-sm text-text-muted">
                           <Briefcase className="h-3.5 w-3.5" />
-                          {profileWithDept.role}
+                          {profile.role || '—'}
                           <span className="text-text-muted">•</span>
                           <LayoutGrid className="h-3.5 w-3.5" />
-                          {profileWithDept.department}
+                          {department || '—'}
                         </div>
                         <div className="mt-2.5 flex flex-wrap items-center gap-2">
                           <Badge variant="default" size="sm">Основной сотрудник</Badge>
@@ -223,10 +314,10 @@ export function SettingsPage() {
             transition={{ delay: 0.05 }}
             className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
           >
-            <StatCard label="В компании" value="2 года" />
-            <StatCard label="Сообщений" value="12 847" />
-            <StatCard label="Контактов" value="156" />
-            <StatCard label="Офис" value="Москва" />
+            <StatCard label="В компании" value={stats.yearsInCompany} />
+            <StatCard label="Сообщений" value={stats.messageCount} />
+            <StatCard label="Контактов" value={stats.contactCount} />
+            <StatCard label="Офис" value={stats.office} />
           </motion.div>
 
           {/* Profile Section */}
@@ -260,6 +351,20 @@ export function SettingsPage() {
                       value={editedProfile.phone}
                       onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
                       className="h-9 bg-bg-panel"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-text-secondary">Статус</label>
+                    <Select
+                      value={editedProfile.status}
+                      onChange={(value) => setEditedProfile({ ...editedProfile, status: value as any })}
+                      options={[
+                        { value: 'online', label: '🟢 На линии' },
+                        { value: 'busy', label: '🔴 Занят' },
+                        { value: 'away', label: '🟡 Отошёл' },
+                        { value: 'dnd', label: '⛔ Не беспокоить' },
+                        { value: 'offline', label: '⚫ Не в сети' },
+                      ]}
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
@@ -662,7 +767,7 @@ export function SettingsPage() {
                 </p>
               </CardHeader>
               <CardFooter>
-                <Button variant="destructive" size="sm">
+                <Button variant="destructive" size="sm" onClick={signOut}>
                   <LogOut className="mr-1.5 h-3.5 w-3.5" />
                   Выйти из системы
                 </Button>

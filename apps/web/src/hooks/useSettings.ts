@@ -4,6 +4,8 @@
  */
 
 import * as React from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 
 // ===== TYPES =====
 export interface ProfileSettings {
@@ -175,6 +177,61 @@ export function useSettings() {
   // App info (read-only)
   const app: AppSettings = defaultApp;
 
+  // ===== SUPABASE SYNC =====
+  const currentUserId = useAuthStore((s) => s.currentUserId);
+  const [settingsLoaded, setSettingsLoaded] = React.useState(false);
+
+  // Load settings from Supabase user_settings table
+  React.useEffect(() => {
+    if (!currentUserId) return;
+
+    async function loadFromSupabase() {
+      try {
+        const { data, error } = await supabase
+          .from('user_settings')
+          .select('preferences')
+          .eq('user_id', currentUserId)
+          .single();
+
+        if (!error && data?.preferences) {
+          const prefs = data.preferences as Record<string, any>;
+          if (prefs.notifications) setNotifications(prev => ({ ...prev, ...prefs.notifications }));
+          if (prefs.appearance) setAppearance(prev => ({ ...prev, ...prefs.appearance }));
+          if (prefs.chats) setChats(prev => ({ ...prev, ...prefs.chats }));
+          if (prefs.security) setSecurity(prev => ({ ...prev, ...prefs.security }));
+        }
+      } catch (err) {
+        console.error('[Settings] Failed to load from Supabase:', err);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    }
+
+    loadFromSupabase();
+  }, [currentUserId]);
+
+  // Save settings to Supabase when they change (after initial load)
+  React.useEffect(() => {
+    if (!currentUserId || !settingsLoaded) return;
+
+    const preferences = {
+      notifications,
+      appearance,
+      chats,
+      security,
+    };
+
+    supabase
+      .from('user_settings')
+      .upsert(
+        { user_id: currentUserId, preferences },
+        { onConflict: 'user_id' }
+      )
+      .then(({ error }) => {
+        if (error) console.error('[Settings] Failed to save to Supabase:', error);
+      });
+  }, [currentUserId, settingsLoaded, notifications, appearance, chats, security]);
+
   // ===== PERSISTENCE =====
   React.useEffect(() => {
     setToStorage(STORAGE_KEYS.PROFILE, profile);
@@ -223,12 +280,31 @@ export function useSettings() {
     setAppearance(defaultAppearance);
     setChats(defaultChats);
     setSecurity(defaultSecurity);
-    
+
     // Clear localStorage
     Object.values(STORAGE_KEYS).forEach((key) => {
       localStorage.removeItem(key);
     });
-  }, []);
+
+    // Reset in Supabase
+    if (currentUserId) {
+      const defaultPrefs = {
+        notifications: defaultNotifications,
+        appearance: defaultAppearance,
+        chats: defaultChats,
+        security: defaultSecurity,
+      };
+      supabase
+        .from('user_settings')
+        .upsert(
+          { user_id: currentUserId, preferences: defaultPrefs },
+          { onConflict: 'user_id' }
+        )
+        .then(({ error }) => {
+          if (error) console.error('[Settings] Failed to reset in Supabase:', error);
+        });
+    }
+  }, [currentUserId]);
 
   const clearLocalData = React.useCallback(() => {
     // Clear all messenger-related localStorage
@@ -237,7 +313,18 @@ export function useSettings() {
         localStorage.removeItem(key);
       }
     });
-  }, []);
+
+    // Clear in Supabase
+    if (currentUserId) {
+      supabase
+        .from('user_settings')
+        .delete()
+        .eq('user_id', currentUserId)
+        .then(({ error }) => {
+          if (error) console.error('[Settings] Failed to clear in Supabase:', error);
+        });
+    }
+  }, [currentUserId]);
 
   return {
     // Settings

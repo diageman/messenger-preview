@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { AuthProvider, useAuth } from './hooks/auth/useAuth';
+import { SettingsApplier } from './components/SettingsApplier';
 import { Suspense, useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
 
@@ -107,6 +108,7 @@ function App() {
     <Suspense fallback={<PageLoading />}>
       <AppBootstrap />
       <AuthProvider>
+        <SettingsApplier />
         <AppContent />
       </AuthProvider>
     </Suspense>
