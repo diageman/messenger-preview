@@ -245,11 +245,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { isDataLoaded, appStartTime, initialMessageIds } = get();
     const messageTime = new Date(message.created_at).getTime();
     
-    // Сообщение должно быть создано строго после запуска этой сессии
+    // ЖЕСТКИЙ БЛОК: Молчим первые 10 секунд сессии в любом случае
+    const isAfterGracePeriod = (now - appStartTime) > 10000; 
     const isCreatedLive = messageTime > appStartTime;
     const isTrulyNew = !initialMessageIds.has(message.id);
 
-    if (!isOwn && !isChatActive && isDataLoaded && isCreatedLive && isTrulyNew) {
+    if (!isOwn && !isChatActive && isDataLoaded && isAfterGracePeriod && isCreatedLive && isTrulyNew) {
       const senderName = message.sender?.full_name || 'Чат';
       if (
         typeof Notification !== 'undefined' &&
@@ -336,9 +337,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
       
       if (error) {
-        console.error('[ChatStore] markChatRead DB Error:', error.message, error.details);
+        console.error('❌ ОШИБКА БАЗЫ: Не удалось сохранить прочтение!', {
+          chatId,
+          userId: currentUserId,
+          error: error.message,
+          details: error.details
+        });
       } else {
-        console.log(`[ChatStore] Saved read status for ${chatId} at ${lastReadAt}`);
+        console.log('✅ СИНХРОНИЗАЦИЯ: Статус прочтения сохранен в БД для чата', chatId);
       }
     } catch (err) {
       console.error('[ChatStore] markChatRead Exception:', err);
@@ -396,7 +402,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content,
             sender_id,
             created_at
-          ).order('created_at', { ascending: false }).limit(20),
+          ).order('created_at', { ascending: false }).limit(200),
           chat_reads (
             user_id,
             last_read_at
