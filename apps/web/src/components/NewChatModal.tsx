@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@messenger/ui';
 import { Button } from '@messenger/ui';
 import { Input } from '@messenger/ui';
 import { Avatar } from '@messenger/ui';

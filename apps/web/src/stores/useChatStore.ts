@@ -525,11 +525,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (error) throw error;
 
       // Remove from local state
-      set((state) => ({
-        chats: state.chats.filter((c) => c.id !== chatId),
-        messages: { ...state.messages, [chatId]: undefined },
+      const { [chatId]: _, ...restMessages } = get().messages;
+      set({
+        chats: get().chats.filter((c) => c.id !== chatId),
+        messages: restMessages,
         selectedChatId: selectedChatId === chatId ? null : selectedChatId,
-      }));
+      });
     } catch (err: any) {
       console.error('[ChatStore] deleteChat error:', err);
       throw err;
