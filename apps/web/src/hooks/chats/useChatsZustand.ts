@@ -28,13 +28,10 @@ export function useChats() {
     }
   }, [authReady, currentUserId, initRealtime]);
 
-  // Загружаем чаты только при первой авторизации, не при каждой навигации
+  // Загружаем чаты когда пользователь готов
   React.useEffect(() => {
     if (authReady && currentUserId) {
-      const { isDataLoaded } = useChatStore.getState();
-      if (!isDataLoaded) {
-        fetchChats();
-      }
+      fetchChats();
     } else if (authReady && !currentUserId) {
       useChatStore.setState({ loading: false, chats: [] });
     }

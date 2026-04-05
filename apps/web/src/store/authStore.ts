@@ -23,13 +23,21 @@ export const useAuthStore = create<AuthStore>((set) => ({
   setCurrentUserId: (id) => set({ currentUserId: id }),
 
   initAuth: async () => {
-    // supabase.auth.getUser() — сетевой запрос, авторитетный источник identity
-    const { data, error } = await supabase.auth.getUser();
+    try {
+      // Быстро восстанавливаем локальную сессию без критической блокировки UI
+      const { data, error } = await supabase.auth.getSession();
 
-    set({
-      currentUserId: error ? null : data.user?.id ?? null,
-      authReady: true,
-    });
+      set({
+        currentUserId: error ? null : data.session?.user?.id ?? null,
+        authReady: true,
+      });
+    } catch (err: any) {
+      console.error('[authStore] initAuth failed:', err?.message || err);
+      set({
+        currentUserId: null,
+        authReady: true,
+      });
+    }
 
     // Подписываемся ТОЛЬКО один раз — без async вызовов!
     if (authSubscribed) return;
