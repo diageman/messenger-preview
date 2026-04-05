@@ -189,7 +189,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
    */
   applyIncomingMessage: (message: Message) => {
     // ВАЖНО: Достаем messages прямо здесь, чтобы не было ReferenceError
-    const { chats, selectedChatId, messages, fetchChats, markChatRead } = get();
+    const { chats, selectedChatId, messages, markChatRead } = get();
     const { currentUserId } = useAuthStore.getState();
 
     const isOwn = message.sender_id === currentUserId;
@@ -576,9 +576,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           chat_members!inner (
             user_id, role,
             profiles:user_id (id, full_name, email, avatar_url, status, role)
-          ),
-          messages (id, content, sender_id, created_at)
-          .order('created_at', { ascending: false }).limit(1)
+          )
         `)
         .eq('id', chatId)
         .single();

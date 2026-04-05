@@ -13,6 +13,8 @@ export type ChatCategory = 'all' | 'direct' | 'groups' | 'unread' | 'important';
 export interface Employee {
   id: string;
   name: string;
+  full_name?: string;
+  avatar_url?: string;
   role: string;
   department: string;
   avatar: string;
