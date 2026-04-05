@@ -174,10 +174,11 @@ BEGIN
   VALUES (p_org_id, 'direct', p_user1_id, v_sorted_users)
   RETURNING id INTO v_chat_id;
   
-  -- Add participants
+  -- Add participants (with re-join logic)
   INSERT INTO chat_members (chat_id, user_id, role)
   VALUES (v_chat_id, p_user1_id, 'member'),
-         (v_chat_id, p_user2_id, 'member');
+         (v_chat_id, p_user2_id, 'member')
+  ON CONFLICT (chat_id, user_id) DO NOTHING;
   
   RETURN v_chat_id;
 END;

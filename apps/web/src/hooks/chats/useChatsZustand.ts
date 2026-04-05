@@ -28,10 +28,13 @@ export function useChats() {
     }
   }, [authReady, currentUserId, initRealtime]);
 
-  // Загружаем чаты когда пользователь готов
+  // Загружаем чаты только при первой авторизации, не при каждой навигации
   React.useEffect(() => {
     if (authReady && currentUserId) {
-      fetchChats();
+      const { isDataLoaded } = useChatStore.getState();
+      if (!isDataLoaded) {
+        fetchChats();
+      }
     } else if (authReady && !currentUserId) {
       useChatStore.setState({ loading: false, chats: [] });
     }
@@ -174,7 +177,8 @@ export function useChatActions() {
         if (!data) {
           alert('Чат не был создан: база данных вернула пустой результат.');
         } else {
-          useChatStore.getState().fetchChats();
+          // Бесшовное добавление чата без полной перезагрузки списка
+          await useChatStore.getState().fetchAndAddChat(data);
         }
 
         return data;
@@ -186,16 +190,24 @@ export function useChatActions() {
     [profile]
   );
 
-  const deleteChat = React.useCallback(
+  const deleteChatForMe = React.useCallback(
     async (chatId: string) => {
-      await useChatStore.getState().deleteChat(chatId);
+      await useChatStore.getState().deleteChatForMe(chatId);
+    },
+    []
+  );
+
+  const deleteChatForAll = React.useCallback(
+    async (chatId: string) => {
+      await useChatStore.getState().deleteChatForAll(chatId);
     },
     []
   );
 
   return {
     createDirectChat,
-    deleteChat,
+    deleteChatForMe,
+    deleteChatForAll,
   };
 }
 

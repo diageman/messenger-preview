@@ -111,8 +111,16 @@ interface ChatState {
   markChatRead: (chatId: string, lastReadAt: string) => Promise<void>;
   sendTypingStatus: (chatId: string, userName: string) => void;
 
+  // Chat creation — seamless add without full reload
+  fetchAndAddChat: (chatId: string) => Promise<ChatItem | null>;
+
   // Chat deletion
-  deleteChat: (chatId: string) => Promise<void>;
+  deleteChatForMe: (chatId: string) => Promise<void>;
+  deleteChatForAll: (chatId: string) => Promise<void>;
+
+  // Message deletion
+  deleteMessageForMe: (messageId: string) => Promise<void>;
+  deleteMessageForEveryone: (messageId: string) => Promise<void>;
 
   // Realtime subscription management
   initRealtime: () => void;
@@ -192,9 +200,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const chatIndex = chats.findIndex((c) => c.id === message.chat_id);
     
-    // Если чата нет в списке (например, новый диалог), тянем всё заново
+    // Если чата нет в списке — добавляем только для НОВЫХ сообщений (после входа)
+    // Старые сообщения игнорируем чтобы не создавать лишние запросы
     if (chatIndex === -1) {
-      fetchChats();
+      const { appStartTime } = get();
+      const messageTime = new Date(message.created_at).getTime();
+      const isNewMessage = messageTime > appStartTime;
+      
+      if (isNewMessage) {
+        get().fetchAndAddChat(message.chat_id);
+      }
       return;
     }
 
@@ -426,13 +441,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return isNotMe && (isNewer || lastReadTime === 0);
         });
 
+        // Определяем имя и аватар для direct чатов
+        let displayName = chat.name;
+        let peerAvatar = null;
+        let peerStatus = 'offline';
+
+        if (chat.type === 'direct') {
+          const peer = chat.chat_members?.find((m: any) => m.user_id !== currentUserId)?.profiles;
+          if (peer) {
+            displayName = peer.full_name;
+            peerAvatar = peer.avatar_url;
+            peerStatus = peer.status;
+          }
+        }
+
         return {
           ...chat,
+          name: displayName || 'Загрузка...',
+          peerAvatar,
+          peerStatus,
           unreadCount: safeUnread(unreadMsgs.length),
           lastMessageId: lastMsg?.id ?? null,
           lastMessageText: lastMsg?.content ?? null,
           lastMessageAt: lastMsg?.created_at ?? null,
-          messages: sortedMsgs
+          messages: sortedMsgs,
+          // Добавляем поле participants для совместимости с ChatList
+          participants: chat.chat_members?.map((m: any) => ({
+            id: m.user_id,
+            name: m.profiles?.full_name,
+            avatar: m.profiles?.avatar_url || (m.profiles?.full_name?.[0] ?? '?')
+          })) || []
         };
       });
 
@@ -467,20 +505,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!currentUserId || !chatId) return;
 
     try {
-      const { data, error } = await supabase
+      // 1. Получаем ID скрытых сообщений для текущего пользователя
+      const { data: hiddenData } = await supabase
+        .from('hidden_messages')
+        .select('message_id')
+        .eq('user_id', currentUserId);
+      
+      const hiddenIds = hiddenData?.map(h => h.message_id) || [];
+
+      // 2. Загружаем сообщения, исключая те, что скрыты "для себя"
+      let query = supabase
         .from('messages')
-        .select(
-          `
+        .select(`
           *,
-          sender:sender_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `
-        )
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true }); // Убираем лимит для теста, чтобы видеть всё
+          sender:sender_id (id, full_name, avatar_url)
+        `)
+        .eq('chat_id', chatId);
+
+      if (hiddenIds.length > 0) {
+        query = query.not('id', 'in', `(${hiddenIds.join(',')})`);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: true });
 
       if (error) throw error;
 
@@ -515,16 +561,90 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  // ====== DELETE CHAT ======
+  // ====== FETCH AND ADD SINGLE CHAT (seamless, no loading state) ======
 
-  deleteChat: async (chatId: string) => {
+  fetchAndAddChat: async (chatId: string): Promise<ChatItem | null> => {
+    const { currentUserId } = useAuthStore.getState();
+    if (!currentUserId || !chatId) return null;
+
+    try {
+      // Загружаем только один чат со всеми связанными данными
+      const { data, error } = await supabase
+        .from('chats')
+        .select(`
+          *,
+          chat_members!inner (
+            user_id, role,
+            profiles:user_id (id, full_name, email, avatar_url, status, role)
+          ),
+          messages (id, content, sender_id, created_at)
+          .order('created_at', { ascending: false }).limit(1)
+        `)
+        .eq('id', chatId)
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      // Проверяем, нет ли уже этого чата в списке
+      const { chats } = get();
+      if (chats.some(c => c.id === chatId)) {
+        return chats.find(c => c.id === chatId) || null;
+      }
+
+      // Формируем ChatItem
+      const rawMessages = Array.isArray(data.messages) ? data.messages : [];
+      const lastMsg = rawMessages.length > 0 ? rawMessages[0] : null;
+
+      let displayName = data.name;
+      let peerAvatar = null;
+      let peerStatus = 'offline';
+
+      if (data.type === 'direct') {
+        const peer = data.chat_members?.find((m: any) => m.user_id !== currentUserId)?.profiles;
+        if (peer) {
+          displayName = peer.full_name;
+          peerAvatar = peer.avatar_url;
+          peerStatus = peer.status;
+        }
+      }
+
+      const newChat: ChatItem = {
+        ...data,
+        name: displayName || 'Загрузка...',
+        peerAvatar,
+        peerStatus,
+        unreadCount: 0,
+        lastMessageId: lastMsg?.id ?? null,
+        lastMessageText: lastMsg?.content ?? null,
+        lastMessageAt: lastMsg?.created_at ?? null,
+        messages: rawMessages,
+        participants: data.chat_members?.map((m: any) => ({
+          id: m.user_id,
+          name: m.profiles?.full_name,
+          avatar: m.profiles?.avatar_url || (m.profiles?.full_name?.[0] ?? '?')
+        })) || []
+      };
+
+      // Добавляем чат в НАЧАЛО списка без сброса loading
+      set({ chats: [newChat, ...chats] });
+
+      return newChat;
+    } catch (err) {
+      console.error('[ChatStore] fetchAndAddChat error:', err);
+      return null;
+    }
+  },
+
+  // ====== DELETE CHAT FOR ME ======
+
+  deleteChatForMe: async (chatId: string) => {
     const { selectedChatId } = get();
 
     try {
-      const { error } = await supabase.rpc('leave_chat', { p_chat_id: chatId });
+      const { error } = await supabase.rpc('delete_chat_for_self', { p_chat_id: chatId });
       if (error) throw error;
 
-      // Remove from local state
       const { [chatId]: _, ...restMessages } = get().messages;
       set({
         chats: get().chats.filter((c) => c.id !== chatId),
@@ -532,7 +652,76 @@ export const useChatStore = create<ChatState>((set, get) => ({
         selectedChatId: selectedChatId === chatId ? null : selectedChatId,
       });
     } catch (err: any) {
-      console.error('[ChatStore] deleteChat error:', err);
+      console.error('[ChatStore] deleteChatForMe error:', err);
+      throw err;
+    }
+  },
+
+  // ====== DELETE CHAT FOR ALL ======
+
+  deleteChatForAll: async (chatId: string) => {
+    const { selectedChatId } = get();
+
+    try {
+      const { error } = await supabase.rpc('delete_chat_for_all', { p_chat_id: chatId });
+      if (error) throw error;
+
+      const { [chatId]: _, ...restMessages } = get().messages;
+      set({
+        chats: get().chats.filter((c) => c.id !== chatId),
+        messages: restMessages,
+        selectedChatId: selectedChatId === chatId ? null : selectedChatId,
+      });
+    } catch (err: any) {
+      console.error('[ChatStore] deleteChatForAll error:', err);
+      throw err;
+    }
+  },
+
+  // ====== MESSAGE DELETION ======
+
+  deleteMessageForMe: async (messageId: string) => {
+    const { currentUserId } = useAuthStore.getState();
+    const { messages } = get();
+    if (!currentUserId) return;
+
+    try {
+      const { error } = await supabase
+        .from('hidden_messages')
+        .insert({ message_id: messageId, user_id: currentUserId });
+
+      if (error) throw error;
+
+      // Локальное обновление: убираем сообщение из стейта
+      const updatedMessages = { ...messages };
+      for (const chatId in updatedMessages) {
+        updatedMessages[chatId] = updatedMessages[chatId].filter(m => m.id !== messageId);
+      }
+      set({ messages: updatedMessages });
+    } catch (err) {
+      console.error('[ChatStore] deleteMessageForMe error:', err);
+      throw err;
+    }
+  },
+
+  deleteMessageForEveryone: async (messageId: string) => {
+    const { messages } = get();
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+
+      // Локальное обновление: убираем сообщение у всех (через realtime прилетит всем остальным)
+      const updatedMessages = { ...messages };
+      for (const chatId in updatedMessages) {
+        updatedMessages[chatId] = updatedMessages[chatId].filter(m => m.id !== messageId);
+      }
+      set({ messages: updatedMessages });
+    } catch (err) {
+      console.error('[ChatStore] deleteMessageForEveryone error:', err);
       throw err;
     }
   },
@@ -554,16 +743,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
           schema: 'public',
           table: 'messages',
         },
-        (payload) => {
+        async (payload) => {
           const newMessage = payload.new as any;
           const { currentUserId } = useAuthStore.getState();
+
+          // Если данных отправителя нет (обычно в Realtime Payload), пробуем их достать
+          let senderInfo = newMessage.sender;
+          
+          if (!senderInfo) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url')
+              .eq('id', newMessage.sender_id)
+              .single();
+            
+            if (profile) senderInfo = profile;
+          }
 
           const messageWithSender: Message = {
             ...newMessage,
             isOwn: isOwnMessage(newMessage.sender_id, currentUserId),
-            sender: newMessage.sender || {
-              full_name: 'Пользователь...',
-              avatar_url: null,
+            sender: {
+              id: newMessage.sender_id,
+              full_name: senderInfo?.full_name || 'Сотрудник',
+              avatar: senderInfo?.avatar_url || null,
             },
           };
 
@@ -594,6 +797,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }));
         }, 3000);
       })
+      .subscribe();
+
+    // Подписка на удаление чатов (когда другой пользователь удаляет для всех)
+    supabase
+      .channel('public:chats-deleted')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'chats',
+        },
+        (payload: any) => {
+          const deletedChatId = payload.old?.id;
+          if (!deletedChatId) return;
+
+          const state = get();
+          console.log('[ChatStore] Chat deleted via realtime:', deletedChatId);
+
+          // Remove chat from list and clear selection
+          const { [deletedChatId]: _, ...restMessages } = state.messages;
+          set({
+            chats: state.chats.filter((c) => c.id !== deletedChatId),
+            messages: restMessages,
+            selectedChatId: state.selectedChatId === deletedChatId ? null : state.selectedChatId,
+          });
+        }
+      )
+      .subscribe();
+
+    // Подписка на удаление из chat_members (синхронизация между вкладками при удалении для себя)
+    supabase
+      .channel('public:chat-members-deleted')
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'chat_members',
+        },
+        (payload: any) => {
+          const deletedMemberUserId = payload.old?.user_id;
+          const deletedChatId = payload.old?.chat_id;
+          if (!deletedChatId || !deletedMemberUserId) return;
+
+          // Обновляем только если это текущий пользователь (синхронизация между вкладками)
+          const { currentUserId } = useAuthStore.getState();
+          if (deletedMemberUserId !== currentUserId) return;
+
+          console.log('[ChatStore] User removed from chat via realtime:', deletedChatId);
+
+          const state = get();
+          const { [deletedChatId]: _, ...restMessages } = state.messages;
+          set({
+            chats: state.chats.filter((c) => c.id !== deletedChatId),
+            messages: restMessages,
+            selectedChatId: state.selectedChatId === deletedChatId ? null : state.selectedChatId,
+          });
+        }
+      )
       .subscribe();
 
     console.log('[ChatStore] Realtime subscriptions initialized');

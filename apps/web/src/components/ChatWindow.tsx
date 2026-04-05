@@ -4,7 +4,7 @@ import { Avatar } from '@messenger/ui';
 import { Button } from '@messenger/ui';
 import { ScrollArea } from '@messenger/ui';
 import { motion } from 'framer-motion';
-import { Send, Paperclip, Smile, MessageSquare, Check, CheckCheck } from 'lucide-react';
+import { Send, Paperclip, Smile, MessageSquare, Check, CheckCheck, Trash2, X, MoreVertical } from 'lucide-react';
 import type { Message, MessageStatus } from '../types/chat';
 import { getChatAvatarData } from '../lib/chatAvatar';
 import { useChatStore } from '../stores/useChatStore';
@@ -65,6 +65,14 @@ export function ChatWindow({
   const { profile } = useAuth();
   const { chats: chatSettings } = useSettings();
   const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
+  const deleteMessageForMe = useChatStore(state => state.deleteMessageForMe);
+  const deleteMessageForEveryone = useChatStore(state => state.deleteMessageForEveryone);
+  const deleteChatForMe = useChatStore(state => state.deleteChatForMe);
+  const deleteChatForAll = useChatStore(state => state.deleteChatForAll);
+
+  const [showChatMenu, setShowChatMenu] = React.useState(false);
+
+  const [deletingMessageId, setDeletingMessageId] = React.useState<string | null>(null);
   const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || EMPTY_TYPING_USERS);
   const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -226,6 +234,50 @@ export function ChatWindow({
               </p>
             </div>
           </div>
+
+          {/* Меню управления чатом */}
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setShowChatMenu(!showChatMenu)}
+              className="text-text-muted hover:text-text-primary"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+
+            {showChatMenu && (
+              <div className="absolute right-0 top-full mt-2 z-50 bg-bg-sidebar border border-border-soft rounded-lg shadow-2xl p-2 min-w-[200px] animate-in fade-in zoom-in-95">
+                <div className="px-2 py-1.5 border-b border-border-soft mb-1">
+                  <span className="text-[10px] font-bold uppercase text-text-muted tracking-widest">Управление диалогом</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (confirm('Удалить диалог для себя? Собеседник продолжит его видеть.')) {
+                      await deleteChatForMe(chatId);
+                      setShowChatMenu(false);
+                    }
+                  }}
+                  className="w-full text-left px-2 py-2 text-sm hover:bg-bg-elevated rounded flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4 text-text-muted" />
+                  Удалить для себя
+                </button>
+                <button
+                  onClick={async () => {
+                    if (confirm('ВНИМАНИЕ: Это полностью удалит диалог и все сообщения для ВСЕХ участников. Отменить это действие нельзя.')) {
+                      await deleteChatForAll(chatId);
+                      setShowChatMenu(false);
+                    }
+                  }}
+                  className="w-full text-left px-2 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Удалить для всех
+                </button>
+              </div>
+            )}
+          </div>
         </header>
 
         {/* Messages */}
@@ -251,21 +303,64 @@ export function ChatWindow({
                       message.isOwn ? 'justify-end' : 'justify-start'
                     )}
                   >
-                    {!message.isOwn && message.sender && (
+                    {!message.isOwn && (
                       <Avatar
                         size="sm"
-                        fallback={message.sender.avatar}
+                        fallback={message.sender?.avatar || message.sender?.full_name?.[0] || '?'}
                         className="mr-2"
                       />
                     )}
                     <div
                       className={cn(
-                        'max-w-[65%] rounded-xl px-4 py-2 min-h-[32px] break-words',
+                        'max-w-[65%] rounded-xl px-4 py-2 min-h-[32px] break-words group relative',
                         message.isOwn
                           ? 'bubble-outgoing'
                           : 'bubble-incoming'
                       )}
                     >
+                      {/* Кнопка удаления (появляется при наведении) */}
+                      <button
+                        onClick={() => setDeletingMessageId(message.id)}
+                        className={cn(
+                          "absolute -top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-bg-panel border border-border-soft shadow-sm hover:text-red-500",
+                          message.isOwn ? "-left-8" : "-right-8"
+                        )}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+
+                      {/* Меню подтверждения удаления */}
+                      {deletingMessageId === message.id && (
+                        <div className="absolute z-50 bottom-full mb-2 bg-bg-panel border border-border-soft rounded-lg shadow-xl p-2 min-w-[160px] animate-in fade-in slide-in-from-bottom-2">
+                          <div className="flex justify-between items-center mb-2 px-1">
+                            <span className="text-[10px] font-bold uppercase text-text-muted">Удалить сообщение?</span>
+                            <button onClick={() => setDeletingMessageId(null)}><X className="h-3 w-3" /></button>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={async () => {
+                                await deleteMessageForMe(message.id);
+                                setDeletingMessageId(null);
+                              }}
+                              className="text-left px-2 py-1.5 text-xs hover:bg-bg-elevated rounded transition-colors"
+                            >
+                              Удалить у меня
+                            </button>
+                            {message.isOwn && (
+                              <button
+                                onClick={async () => {
+                                  await deleteMessageForEveryone(message.id);
+                                  setDeletingMessageId(null);
+                                }}
+                                className="text-left px-2 py-1.5 text-xs text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                              >
+                                Удалить у всех
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-sm">{message.content}</p>
                       <div className={cn(
                         'mt-1 flex items-center gap-1',

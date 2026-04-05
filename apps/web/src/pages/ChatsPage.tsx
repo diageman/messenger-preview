@@ -15,7 +15,7 @@ export function ChatsPage() {
   const { profile } = useAuth();
   // Подключаем основной хук чатов, чтобы инициировать загрузку данных
   useChats();
-  const { deleteChat } = useChatActions(); 
+  const { deleteChatForMe, deleteChatForAll } = useChatActions(); 
   
   const chats = useChatStore((state) => state.chats);
   const loading = useChatStore((state) => state.loading);
@@ -206,7 +206,8 @@ export function ChatsPage() {
             isSearchOpen={false}
             onSearchOpenChange={() => {}}
             unreadTotal={unreadTotal}
-            onDeleteChat={deleteChat}
+            onDeleteChatForMe={deleteChatForMe}
+            onDeleteChatForAll={deleteChatForAll}
           />
 
           {!chatListResizer.isCollapsed && (
