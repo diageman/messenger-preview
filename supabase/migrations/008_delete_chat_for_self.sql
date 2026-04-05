@@ -11,13 +11,20 @@ BEGIN
   INSERT INTO hidden_messages (message_id, user_id)
   SELECT id, auth.uid() FROM messages WHERE chat_id = p_chat_id
   ON CONFLICT DO NOTHING;
-  DELETE FROM chat_members WHERE chat_id = p_chat_id AND user_id = auth.uid();
+
   DELETE FROM chat_reads WHERE chat_id = p_chat_id AND user_id = auth.uid();
   DELETE FROM archived_chats WHERE chat_id = p_chat_id AND user_id = auth.uid();
-  IF v_chat_type = 'direct' THEN
-    DELETE FROM chats WHERE id = p_chat_id
-      AND NOT EXISTS (SELECT 1 FROM chat_members WHERE chat_id = p_chat_id);
+
+  IF v_chat_type <> 'direct' THEN
+    DELETE FROM chat_members WHERE chat_id = p_chat_id AND user_id = auth.uid();
   END IF;
+
+  IF v_chat_type = 'direct' THEN
+    RETURN;
+  END IF;
+
+  DELETE FROM chats WHERE id = p_chat_id
+    AND NOT EXISTS (SELECT 1 FROM chat_members WHERE chat_id = p_chat_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION delete_chat_for_self IS 'Remove user from chat. For direct chats, deletes when both leave.';

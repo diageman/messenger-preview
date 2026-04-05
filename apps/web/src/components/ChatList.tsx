@@ -22,8 +22,13 @@ export function ChatList({ chats, selectedChatId, onSelectChat, searchQuery, onS
   const [modalOpen, setModalOpen] = React.useState(false);
   const { pinned, recent, other } = React.useMemo(() => {
     const l = chats as ChatWithPeer[];
-    const r = l.filter(c => !c.isPinned && c.timestamp.includes(':')).slice(0, 5);
-    return { pinned: l.filter(c => c.isPinned), recent: r, other: l.filter(c => !c.isPinned && !r.some(x => x.id === c.id)) };
+    const unpinned = l.filter(c => !c.isPinned);
+    const r = unpinned.slice(0, 5);
+    return {
+      pinned: l.filter(c => c.isPinned),
+      recent: r,
+      other: unpinned.filter(c => !r.some(x => x.id === c.id)),
+    };
   }, [chats]);
   const Item = (c: ChatWithPeer, i: number) => <ChatListItem key={c.id} chat={c} isSelected={selectedChatId === c.id} onSelect={() => onSelectChat(c.id)} onDeleteChatForMe={onDeleteChatForMe} onDeleteChatForAll={onDeleteChatForAll} delay={i * 0.03} />;
   return (<div className="relative flex h-full flex-col bg-bg-panel">

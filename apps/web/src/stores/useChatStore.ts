@@ -576,7 +576,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           chat_members!inner (
             user_id, role,
             profiles:user_id (id, full_name, email, avatar_url, status, role)
-          )
+          ),
+          messages (id, content, sender_id, created_at)
         `)
         .eq('id', chatId)
         .single();
@@ -624,8 +625,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })) || []
       };
 
-      // Добавляем чат в НАЧАЛО списка без сброса loading
-      set({ chats: [newChat, ...chats] });
+      // Добавляем чат в НАЧАЛО списка и синхронизируем messages map
+      set((state) => ({
+        chats: [newChat, ...chats],
+        messages: {
+          ...state.messages,
+          [chatId]: rawMessages,
+        },
+      }));
 
       return newChat;
     } catch (err) {
