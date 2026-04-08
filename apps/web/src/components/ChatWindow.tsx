@@ -306,7 +306,7 @@ export function ChatWindow({
                     {!message.isOwn && (
                       <Avatar
                         size="sm"
-                        fallback={message.sender?.avatar || message.sender?.full_name?.[0] || '?'}
+                        fallback={message.sender?.avatar_url || message.sender?.avatar || message.sender?.full_name?.[0] || '?'}
                         className="mr-2"
                       />
                     )}

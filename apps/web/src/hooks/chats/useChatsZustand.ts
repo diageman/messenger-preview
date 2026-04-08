@@ -1,41 +1,60 @@
 /**
  * Hooks for chats and messages — Zustand-based
- * Используют authStore для currentUserId (НИКАКИХ supabase.auth.getUser())
+ * Используют useAuth() как источник userId, синхронизируют authStore
  */
 
 import * as React from 'react';
 import { supabase } from '@/lib/supabase';
 import { useChatStore, getTotalUnread } from '@/stores/useChatStore';
 import { useAuthStore } from '@/store/authStore';
+import { useAuth } from '@/hooks/auth/useAuth';
 
 // =====================================================
 // USE CHATS — инициализирует загрузку и realtime
 // =====================================================
 
 export function useChats() {
-  const currentUserId = useAuthStore((s) => s.currentUserId);
-  const authReady = useAuthStore((s) => s.authReady);
+  // Используем useAuth() как единственный источник истины
+  const { profile, authLoading, profileLoading } = useAuth();
+  const currentUserId = profile?.id ?? null;
+  // authReady = сессия восстановлена И профиль загружен (или нет профиля)
+  const authReady = !authLoading && !profileLoading;
+
   const chats = useChatStore((s) => s.chats);
   const loading = useChatStore((s) => s.loading);
   const error = useChatStore((s) => s.error);
+  const isRealtimeInitialized = useChatStore((s) => s.isRealtimeInitialized);
+  const isChatsLoading = useChatStore((s) => s.isChatsLoading);
+  const isChatsLoaded = useChatStore((s) => s.isChatsLoaded);
   const fetchChats = useChatStore((s) => s.fetchChats);
   const initRealtime = useChatStore((s) => s.initRealtime);
 
+  // Синхронизируем userId в authStore чтобы useChatStore.getState() работал
+  React.useEffect(() => {
+    useAuthStore.setState({ currentUserId, authReady });
+  }, [currentUserId, authReady]);
+
   // Инициализируем realtime один раз при старте
   React.useEffect(() => {
-    if (authReady && currentUserId) {
+    if (authReady && currentUserId && !isRealtimeInitialized) {
       initRealtime();
     }
-  }, [authReady, currentUserId, initRealtime]);
+  }, [authReady, currentUserId, isRealtimeInitialized, initRealtime]);
 
   // Загружаем чаты когда пользователь готов
   React.useEffect(() => {
-    if (authReady && currentUserId) {
+    if (authReady && currentUserId && !isChatsLoading && !isChatsLoaded) {
       fetchChats();
     } else if (authReady && !currentUserId) {
-      useChatStore.setState({ loading: false, chats: [] });
+      useChatStore.setState({
+        loading: false,
+        chats: [],
+        isChatsLoading: false,
+        isChatsLoaded: false,
+        isDataLoaded: false,
+      });
     }
-  }, [authReady, currentUserId, fetchChats]);
+  }, [authReady, currentUserId, isChatsLoading, isChatsLoaded, fetchChats]);
 
   return {
     chats,
@@ -78,14 +97,19 @@ export function useMessages({ chatId }: UseMessagesOptions) {
     []
   );
 
-  // Fetch messages when chatId changes
+  // Fetch messages when chatId changes, but avoid refetching already hydrated chats
   React.useEffect(() => {
     if (!chatId || String(chatId).length < 30) {
       if (chatId === '') clearMessages('');
       return;
     }
+
+    if (messages.length > 0) {
+      return;
+    }
+
     fetchMessages(chatId);
-  }, [chatId, fetchMessages, clearMessages]);
+  }, [chatId, messages.length, fetchMessages, clearMessages]);
 
   // Mark as read when chatId changes
   React.useEffect(() => {
@@ -145,8 +169,6 @@ export function useMessages({ chatId }: UseMessagesOptions) {
 // =====================================================
 // USE CHAT ACTIONS
 // =====================================================
-
-import { useAuth } from '@/hooks/auth/useAuth';
 
 export function useChatActions() {
   const { profile } = useAuth();

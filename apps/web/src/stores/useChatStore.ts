@@ -91,7 +91,9 @@ interface ChatState {
   loading: boolean;
   error: Error | null;
   typingUsers: Record<string, string[]>; // chatId -> userNames[]
-  isInitialized: boolean;
+  isRealtimeInitialized: boolean;
+  isChatsLoading: boolean;
+  isChatsLoaded: boolean;
   isDataLoaded: boolean; // Флаг завершения fetchChats
   appStartTime: number;
   initialMessageIds: Set<string>; // ID сообщений, загруженных при старте
@@ -130,6 +132,9 @@ interface ChatState {
 // CREATE STORE
 // =====================================================
 
+// Broadcast-канал: немедленное уведомление всех участников об удалении чата
+let lifecycleChannel: ReturnType<typeof supabase.channel> | null = null;
+
 export const useChatStore = create<ChatState>((set, get) => ({
   // Initial state
   chats: [],
@@ -137,7 +142,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loading: true,
   error: null,
   typingUsers: {},
-  isInitialized: false,
+  isRealtimeInitialized: false,
+  isChatsLoading: false,
+  isChatsLoaded: false,
   isDataLoaded: false,
   appStartTime: Date.now(),
   initialMessageIds: new Set(),
@@ -208,7 +215,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const isNewMessage = messageTime > appStartTime;
       
       if (isNewMessage) {
-        get().fetchAndAddChat(message.chat_id);
+        get().fetchAndAddChat(message.chat_id).then(() => {
+          // После загрузки чата инкрементируем unread если нужно
+          // (isOwn и isChatActive захвачены в замыкании до async-операции)
+          if (!isOwn && !isChatActive) {
+            const freshIndex = get().chats.findIndex((c) => c.id === message.chat_id);
+            if (freshIndex !== -1) {
+              set((state) => {
+                const updated = [...state.chats];
+                updated[freshIndex] = { ...updated[freshIndex], unreadCount: 1 };
+                return { chats: updated };
+              });
+            }
+          }
+        });
       }
       return;
     }
@@ -371,13 +391,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   fetchChats: async () => {
     const { currentUserId } = useAuthStore.getState();
+    const { isChatsLoading, isChatsLoaded } = get();
 
     if (!currentUserId) {
       set({ loading: false });
       return;
     }
 
-    set({ loading: true, error: null });
+    if (isChatsLoading || isChatsLoaded) {
+      return;
+    }
+
+    set({ loading: true, error: null, isChatsLoading: true });
 
     try {
       // Получаем chat_ids пользователя
@@ -391,7 +416,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const chatIds = memberData?.map((m) => m.chat_id) || [];
 
       if (chatIds.length === 0) {
-        set({ chats: [], loading: false });
+        set({ chats: [], loading: false, isChatsLoading: false, isChatsLoaded: true, isDataLoaded: true });
         return;
       }
 
@@ -405,7 +430,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             profiles:user_id (id, full_name, email, avatar_url, status, role)
           ),
           messages (id, content, sender_id, created_at)
-          .order('created_at', { ascending: false }).limit(200)
         `)
         .in('id', chatIds)
         .order('updated_at', { ascending: false });
@@ -427,19 +451,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const rawMessages = Array.isArray(chat.messages) ? chat.messages : [];
         
         // Сортируем: новые сверху
-        const sortedMsgs = [...rawMessages].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        const sortedMsgs = [...rawMessages]
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .map((msg: any) => ({
+            ...msg,
+            isOwn: msg.sender_id === currentUserId,
+          }));
         
         const lastMsg = sortedMsgs.length > 0 ? sortedMsgs[0] : null;
         const myRead = allReads?.find(r => r.chat_id === chat.id);
         const lastReadTime = myRead ? new Date(myRead.last_read_at).getTime() : 0;
-        
-        const unreadMsgs = sortedMsgs.filter((m: any) => {
-          const isNotMe = m.sender_id !== currentUserId;
-          const isNewer = new Date(m.created_at).getTime() > lastReadTime;
-          return isNotMe && (isNewer || lastReadTime === 0);
-        });
+
+        const hasUnread = Boolean(
+          lastMsg &&
+          lastMsg.sender_id !== currentUserId &&
+          (!lastReadTime || new Date(lastMsg.created_at).getTime() > lastReadTime)
+        );
 
         // Определяем имя и аватар для direct чатов
         let displayName = chat.name;
@@ -460,7 +487,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           name: displayName || 'Загрузка...',
           peerAvatar,
           peerStatus,
-          unreadCount: safeUnread(unreadMsgs.length),
+          unreadCount: safeUnread(hasUnread ? 1 : 0),
           lastMessageId: lastMsg?.id ?? null,
           lastMessageText: lastMsg?.content ?? null,
           lastMessageAt: lastMsg?.created_at ?? null,
@@ -487,14 +514,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ 
         chats: formattedChats, 
         messages: { ...get().messages, ...messagesMap },
-        loading: false, 
-        isInitialized: true,
+        loading: false,
+        isChatsLoading: false,
+        isChatsLoaded: true,
         isDataLoaded: true,
         initialMessageIds: allInitialIds
       });
     } catch (err: any) {
       console.error('[ChatStore] Error fetching chats:', err);
-      set({ error: err, loading: false });
+      set({ error: err, loading: false, isChatsLoading: false });
     }
   },
 
@@ -505,22 +533,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!currentUserId || !chatId) return;
 
     try {
-      // 1. Получаем ID скрытых сообщений для текущего пользователя
-      const { data: hiddenData } = await supabase
-        .from('hidden_messages')
-        .select('message_id')
-        .eq('user_id', currentUserId);
-      
-      const hiddenIds = hiddenData?.map(h => h.message_id) || [];
+      // 1. Получаем ID скрытых сообщений (таблица может не существовать — игнорируем ошибку)
+      let hiddenIds: string[] = [];
+      try {
+        const { data: hiddenData } = await supabase
+          .from('hidden_messages')
+          .select('message_id')
+          .eq('user_id', currentUserId);
+        hiddenIds = hiddenData?.map((h: any) => h.message_id) || [];
+      } catch { hiddenIds = []; }
 
-      // 2. Загружаем сообщения, исключая те, что скрыты "для себя"
+      // 2. Загружаем сообщения
       let query = supabase
         .from('messages')
         .select(`
           *,
           sender:sender_id (id, full_name, avatar_url)
         `)
-        .eq('chat_id', chatId);
+        .eq('chat_id', chatId)
+        .is('deleted_at', null);
 
       if (hiddenIds.length > 0) {
         query = query.not('id', 'in', `(${hiddenIds.join(',')})`);
@@ -568,6 +599,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!currentUserId || !chatId) return null;
 
     try {
+      // Скрытые сообщения (таблица может не существовать)
+      let hiddenIds = new Set<string>();
+      try {
+        const { data: hiddenData } = await supabase
+          .from('hidden_messages')
+          .select('message_id')
+          .eq('user_id', currentUserId);
+        hiddenIds = new Set(hiddenData?.map((h: any) => h.message_id) || []);
+      } catch { hiddenIds = new Set(); }
+
       // Загружаем только один чат со всеми связанными данными
       const { data, error } = await supabase
         .from('chats')
@@ -591,9 +632,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return chats.find(c => c.id === chatId) || null;
       }
 
-      // Формируем ChatItem
+      // Если есть скрытые сообщения, фильтруем их
       const rawMessages = Array.isArray(data.messages) ? data.messages : [];
-      const lastMsg = rawMessages.length > 0 ? rawMessages[0] : null;
+      const visibleMessages = hiddenIds.size > 0 
+        ? rawMessages.filter((m: any) => !hiddenIds.has(m.id))
+        : rawMessages;
+
+      // Если все сообщения скрыты — не показываем чат
+      if (visibleMessages.length === 0 && rawMessages.length > 0) {
+        console.log('[ChatStore] All messages are hidden, not adding chat:', chatId);
+        return null;
+      }
+
+      // Формируем ChatItem (используем только видимые сообщения)
+      const lastMsg = visibleMessages.length > 0 ? visibleMessages[0] : null;
 
       let displayName = data.name;
       let peerAvatar = null;
@@ -617,7 +669,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         lastMessageId: lastMsg?.id ?? null,
         lastMessageText: lastMsg?.content ?? null,
         lastMessageAt: lastMsg?.created_at ?? null,
-        messages: rawMessages,
+        messages: visibleMessages,
         participants: data.chat_members?.map((m: any) => ({
           id: m.user_id,
           name: m.profiles?.full_name,
@@ -630,7 +682,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chats: [newChat, ...chats],
         messages: {
           ...state.messages,
-          [chatId]: rawMessages,
+          [chatId]: visibleMessages,
         },
       }));
 
@@ -648,7 +700,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const { error } = await supabase.rpc('delete_chat_for_self', { p_chat_id: chatId });
-      if (error) throw error;
+      if (error) {
+        console.error('[ChatStore] deleteChatForMe RPC error:', error.message);
+        throw new Error(error.message);
+      }
 
       const { [chatId]: _, ...restMessages } = get().messages;
       set({
@@ -671,6 +726,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { error } = await supabase.rpc('delete_chat_for_all', { p_chat_id: chatId });
       if (error) throw error;
 
+      // Немедленно уведомляем всех участников через broadcast
+      // (надёжнее postgres_changes DELETE, которое блокируется RLS)
+      if (lifecycleChannel) {
+        try {
+          await lifecycleChannel.send({
+            type: 'broadcast',
+            event: 'chat_deleted',
+            payload: { chat_id: chatId },
+          });
+        } catch (e) {
+          console.warn('[ChatStore] broadcast chat_deleted failed:', e);
+        }
+      }
+
       const { [chatId]: _, ...restMessages } = get().messages;
       set({
         chats: get().chats.filter((c) => c.id !== chatId),
@@ -690,36 +759,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { messages } = get();
     if (!currentUserId) return;
 
+    // Локальное скрытие сразу (оптимистично)
+    const updatedMessages = { ...messages };
+    for (const chatId in updatedMessages) {
+      updatedMessages[chatId] = updatedMessages[chatId].filter(m => m.id !== messageId);
+    }
+    set({ messages: updatedMessages });
+
+    // Попытка сохранить в hidden_messages (таблица может не существовать)
     try {
-      const { error } = await supabase
+      await supabase
         .from('hidden_messages')
         .insert({ message_id: messageId, user_id: currentUserId });
-
-      if (error) throw error;
-
-      // Локальное обновление: убираем сообщение из стейта
-      const updatedMessages = { ...messages };
-      for (const chatId in updatedMessages) {
-        updatedMessages[chatId] = updatedMessages[chatId].filter(m => m.id !== messageId);
-      }
-      set({ messages: updatedMessages });
-    } catch (err) {
-      console.error('[ChatStore] deleteMessageForMe error:', err);
-      throw err;
+    } catch {
+      // Таблица не создана — скрытие работает только локально в этой сессии
+      console.warn('[ChatStore] hidden_messages table not found — message hidden locally only');
     }
   },
 
   deleteMessageForEveryone: async (messageId: string) => {
     const { messages } = get();
     try {
+      // Soft-delete: ставим deleted_at — realtime UPDATE доставит событие всем участникам
       const { error } = await supabase
         .from('messages')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', messageId);
 
       if (error) throw error;
 
-      // Локальное обновление: убираем сообщение у всех (через realtime прилетит всем остальным)
+      // Локально убираем сразу, остальным придёт через realtime UPDATE
       const updatedMessages = { ...messages };
       for (const chatId in updatedMessages) {
         updatedMessages[chatId] = updatedMessages[chatId].filter(m => m.id !== messageId);
@@ -735,8 +804,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   initRealtime: () => {
     const state = get();
-    if (state.isInitialized) return;
-    set({ isInitialized: true });
+    if (state.isRealtimeInitialized) return;
+    set({ isRealtimeInitialized: true });
 
     // Подписка на INSERT сообщений
     const msgChannel = supabase
@@ -771,7 +840,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             sender: {
               id: newMessage.sender_id,
               full_name: senderInfo?.full_name || 'Сотрудник',
-              avatar: senderInfo?.avatar_url || null,
+              avatar_url: senderInfo?.avatar_url || null,
             },
           };
 
@@ -862,6 +931,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
           });
         }
       )
+      .subscribe();
+
+    // Подписка на soft-delete сообщений (UPDATE с deleted_at → убираем у всех)
+    supabase
+      .channel('public:messages-softdelete')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as any;
+          if (!msg.deleted_at) return;
+          const { messages } = get();
+          const updated = { ...messages };
+          for (const chatId in updated) {
+            updated[chatId] = updated[chatId].filter(m => m.id !== msg.id);
+          }
+          set({ messages: updated });
+        }
+      )
+      .subscribe();
+
+    // Broadcast-канал: немедленное удаление чата у всех участников
+    lifecycleChannel = supabase
+      .channel('chat-lifecycle')
+      .on('broadcast', { event: 'chat_deleted' }, (payload) => {
+        const chatId = payload.payload?.chat_id;
+        if (!chatId) return;
+        const state = get();
+        console.log('[ChatStore] Broadcast: chat deleted for all:', chatId);
+        const { [chatId]: _r, ...restMsgs } = state.messages;
+        set({
+          chats: state.chats.filter(c => c.id !== chatId),
+          messages: restMsgs,
+          selectedChatId: state.selectedChatId === chatId ? null : state.selectedChatId,
+        });
+      })
       .subscribe();
 
     console.log('[ChatStore] Realtime subscriptions initialized');

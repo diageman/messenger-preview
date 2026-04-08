@@ -155,6 +155,7 @@ export function ChatsPage() {
         : '';
       return {
         ...msg,
+        isOwn: typeof msg.isOwn === 'boolean' ? msg.isOwn : msg.sender_id === profile?.id,
         date,
         timestamp: time,
         sender: msg.sender ? {
@@ -163,7 +164,7 @@ export function ChatsPage() {
         } : undefined,
       };
     });
-  }, [messages]);
+  }, [messages, profile?.id]);
 
   // =====================================================
   // 5. EARLY RETURNS (AFTER ALL HOOKS)

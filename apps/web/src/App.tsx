@@ -3,8 +3,7 @@ import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { AuthProvider, useAuth } from './hooks/auth/useAuth';
 import { SettingsApplier } from './components/SettingsApplier';
-import { Suspense, useEffect } from 'react';
-import { useAuthStore } from './store/authStore';
+import { Suspense } from 'react';
 
 // Lazy load pages
 const ChatsPage = React.lazy(async () => ({ default: (await import('./pages/ChatsPage')).ChatsPage }));
@@ -27,32 +26,36 @@ function PageLoading({ message = 'Загрузка...' }: { message?: string }) 
   );
 }
 
-/**
- * Инициализирует auth store ОДИН раз при старте приложения.
- * supabase.auth.getUser() — авторитетный источник identity.
- */
-function AppBootstrap() {
-  const initAuth = useAuthStore((s) => s.initAuth);
-
-  useEffect(() => {
-    void initAuth();
-  }, [initAuth]);
-
-  return null;
-}
-
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, authLoading, profileLoading } = useAuth();
+  const { session, authLoading, profileLoading, profileError } = useAuth();
 
-  // Ждем, пока восстановится сессия ИЛИ пока грузится профиль
-  // Это предотвращает редирект на /auth в моменты промежуточных состояний
-  if (authLoading || (session && profileLoading)) {
+  // Ждём восстановления сессии
+  if (authLoading) {
+    return <PageLoading message="Восстановление сессии..." />;
+  }
+
+  // Нет сессии — на страницу авторизации
+  if (!session) {
+    return <Navigate replace to="/auth" />;
+  }
+
+  // Сессия есть, ждём профиль
+  if (profileLoading) {
     return <PageLoading message="Загрузка профиля..." />;
   }
 
-  if (!session) {
-    return <Navigate replace to="/auth" />;
+  // Профиль не найден — показываем ошибку вместо белого экрана
+  if (profileError) {
+    return (
+      <div className="flex h-full items-center justify-center bg-bg-app">
+        <div className="flex flex-col items-center gap-4 text-center px-8">
+          <p className="text-text-primary font-semibold">Профиль не найден</p>
+          <p className="text-sm text-text-muted">{profileError}</p>
+          <p className="text-xs text-text-muted">Проверьте таблицу profiles в Supabase Dashboard</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
@@ -61,7 +64,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function Layout() {
   const { authLoading } = useAuth();
 
-  // Wait for auth to load before rendering layout
   if (authLoading) {
     return <PageLoading message="Восстановление сессии..." />;
   }
@@ -106,7 +108,6 @@ function AppContent() {
 function App() {
   return (
     <Suspense fallback={<PageLoading />}>
-      <AppBootstrap />
       <AuthProvider>
         <SettingsApplier />
         <AppContent />

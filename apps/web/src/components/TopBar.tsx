@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { StatusMenu, type UserStatus } from './StatusMenu';
 import { useAuth } from '@/hooks/auth/useAuth';
+import { useChatStore } from '@/stores/useChatStore';
+import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface TopBarProps {
@@ -32,15 +34,31 @@ export function TopBar({
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isAccountMenuOpen, setIsAccountMenuOpen] = React.useState(false);
 
+  // Подписка на unread для badge колокола
+  const unreadTotal = useChatStore(state =>
+    state.chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0)
+  );
+
   const handleStatusChange = async (_status: UserStatus) => {
     // В будущем: обновлять статус в Supabase
     await refreshProfile();
   };
 
   const handleLogout = async () => {
-    // В будущем: вызвать signOut из useAuth
-    console.log('Logout');
     setIsAccountMenuOpen(false);
+    await supabase.auth.signOut();
+    // Сбрасываем стор чатов
+    useChatStore.setState({
+      chats: [],
+      messages: {},
+      loading: true,
+      isChatsLoading: false,
+      isChatsLoaded: false,
+      isDataLoaded: false,
+      isRealtimeInitialized: false,
+      selectedChatId: null,
+    });
+    navigate('/');
   };
 
   // Получаем инициалы из профиля
@@ -109,6 +127,11 @@ export function TopBar({
           title="Уведомления"
         >
           <Bell className="h-5 w-5" />
+          {unreadTotal > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent-yellow text-[9px] font-bold text-black">
+              {unreadTotal > 99 ? '99+' : unreadTotal}
+            </span>
+          )}
         </Button>
 
         {/* Profile Avatar - opens account menu */}
