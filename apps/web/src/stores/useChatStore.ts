@@ -21,6 +21,12 @@ import { isOwnMessage, safeUnread } from '@/lib/chatHelpers';
 // TYPES
 // =====================================================
 
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  myReaction: boolean;
+}
+
 export interface Message {
   id: string;
   chat_id: string;
@@ -32,6 +38,7 @@ export interface Message {
   updated_at: string;
   edited_at: string | null;
   deleted_at: string | null;
+  status?: 'sending' | 'sent' | 'delivered' | 'read';
   sender?: {
     id: string;
     full_name: string;
@@ -207,23 +214,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const chatIndex = chats.findIndex((c) => c.id === message.chat_id);
     
-    // Если чата нет в списке — добавляем только для НОВЫХ сообщений (после входа)
-    // Старые сообщения игнорируем чтобы не создавать лишние запросы
+    // Если чата нет в списке — подгружаем и добавляем сообщение
     if (chatIndex === -1) {
       const { appStartTime } = get();
       const messageTime = new Date(message.created_at).getTime();
       const isNewMessage = messageTime > appStartTime;
       
       if (isNewMessage) {
-        get().fetchAndAddChat(message.chat_id).then(() => {
-          // После загрузки чата инкрементируем unread если нужно
-          // (isOwn и isChatActive захвачены в замыкании до async-операции)
+        get().fetchAndAddChat(message.chat_id).then((chat) => {
+          if (!chat) return;
+          // После загрузки чата — добавляем сообщение в messages map
+          const freshMsgs = get().messages[message.chat_id] || [];
+          if (!freshMsgs.some((m) => m.id === message.id)) {
+            set((state) => ({
+              messages: {
+                ...state.messages,
+                [message.chat_id]: [...freshMsgs, message],
+              },
+            }));
+          }
+          // Инкрементируем unread если нужно
           if (!isOwn && !isChatActive) {
             const freshIndex = get().chats.findIndex((c) => c.id === message.chat_id);
             if (freshIndex !== -1) {
               set((state) => {
                 const updated = [...state.chats];
-                updated[freshIndex] = { ...updated[freshIndex], unreadCount: 1 };
+                updated[freshIndex] = { ...updated[freshIndex], unreadCount: updated[freshIndex].unreadCount + 1 };
                 return { chats: updated };
               });
             }
@@ -382,6 +398,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else {
         console.log('✅ СИНХРОНИЗАЦИЯ: Статус прочтения сохранен в БД для чата', chatId);
       }
+
+      // Помечаем отдельные сообщения как прочитанные (для галочек ✓✓)
+      await supabase.rpc('mark_messages_read', {
+        p_chat_id: chatId,
+        p_user_id: currentUserId,
+      });
     } catch (err) {
       console.error('[ChatStore] markChatRead Exception:', err);
     }
@@ -821,6 +843,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const newMessage = payload.new as any;
           const { currentUserId } = useAuthStore.getState();
 
+          // GUARD: пропускаем только явно чужие чаты (не наши и не с нашим chat_id)
+          // Если чата нет в knownChats — не отбрасываем, а пробуем fetchAndAddChat
+          // Это исправляет баг: после удаления диалога новые сообщения не доставлялись
+          const knownChats = get().chats;
+          const isKnown = knownChats.some((c) => c.id === newMessage.chat_id);
+          const isSender = newMessage.sender_id === currentUserId;
+          if (!isKnown && !isSender) {
+            // Неизвестный чат — попробуем подгрузить, но не блокируем обработку
+            get().fetchAndAddChat(newMessage.chat_id);
+          }
+
           // Если данных отправителя нет (обычно в Realtime Payload), пробуем их достать
           let senderInfo = newMessage.sender;
           
@@ -967,6 +1000,94 @@ export const useChatStore = create<ChatState>((set, get) => ({
           selectedChatId: state.selectedChatId === chatId ? null : state.selectedChatId,
         });
       })
+      .subscribe();
+
+    // Подписка на прочтения сообщений (для галочек ✓✓ у отправителя)
+    supabase
+      .channel('public:message-reads')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'message_reads' },
+        (payload) => {
+          const { message_id, user_id } = payload.new as any;
+          const { currentUserId } = useAuthStore.getState();
+          // Нас интересует только прочтение НАШИХ сообщений другим пользователем
+          if (user_id === currentUserId) return;
+
+          const { messages } = get();
+          const updatedMessages = { ...messages };
+          let changed = false;
+
+          for (const chatId in updatedMessages) {
+            const list = updatedMessages[chatId];
+            const idx = list.findIndex((m) => m.id === message_id);
+            if (idx !== -1 && list[idx].sender_id === currentUserId) {
+              const updated = [...list];
+              updated[idx] = { ...updated[idx], status: 'read' as const };
+              updatedMessages[chatId] = updated;
+              changed = true;
+              break;
+            }
+          }
+
+          if (changed) set({ messages: updatedMessages });
+        }
+      )
+      .subscribe();
+
+    // Подписка на изменения реакций
+    supabase
+      .channel('public:message-reactions')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'message_reactions' },
+        (payload) => {
+          const { message_id, user_id, emoji } = payload.new as any;
+          const { currentUserId } = useAuthStore.getState();
+          const myReaction = user_id === currentUserId;
+          import('./useMessageUIStore').then(({ useMessageUIStore }) => {
+            const state = useMessageUIStore.getState();
+            const current = state.reactions[message_id] ?? [];
+            const existing = current.find((r) => r.emoji === emoji);
+            let next;
+            if (existing) {
+              next = current.map((r) =>
+                r.emoji === emoji
+                  ? { ...r, count: r.count + 1, myReaction: myReaction || r.myReaction }
+                  : r
+              );
+            } else {
+              next = [...current, { emoji, count: 1, myReaction }];
+            }
+            useMessageUIStore.setState({ reactions: { ...state.reactions, [message_id]: next } });
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'message_reactions' },
+        (payload) => {
+          const { message_id, user_id, emoji } = payload.old as any;
+          const { currentUserId } = useAuthStore.getState();
+          if (user_id !== currentUserId) {
+            import('./useMessageUIStore').then(({ useMessageUIStore }) => {
+              const state = useMessageUIStore.getState();
+              const current = state.reactions[message_id] ?? [];
+              const existing = current.find((r) => r.emoji === emoji);
+              if (!existing) return;
+              let next;
+              if (existing.count <= 1) {
+                next = current.filter((r) => r.emoji !== emoji);
+              } else {
+                next = current.map((r) =>
+                  r.emoji === emoji ? { ...r, count: r.count - 1 } : r
+                );
+              }
+              useMessageUIStore.setState({ reactions: { ...state.reactions, [message_id]: next } });
+            });
+          }
+        }
+      )
       .subscribe();
 
     console.log('[ChatStore] Realtime subscriptions initialized');

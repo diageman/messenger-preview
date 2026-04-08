@@ -4,10 +4,12 @@ import { Avatar } from '@messenger/ui';
 import { Button } from '@messenger/ui';
 import { ScrollArea } from '@messenger/ui';
 import { motion } from 'framer-motion';
-import { Send, Paperclip, Smile, MessageSquare, Check, CheckCheck, Trash2, X, MoreVertical } from 'lucide-react';
-import type { Message, MessageStatus } from '../types/chat';
+import { Send, Paperclip, Smile, MessageSquare, Trash2, X, MoreVertical } from 'lucide-react';
+import type { Message } from '../types/chat';
 import { getChatAvatarData } from '../lib/chatAvatar';
 import { useChatStore } from '../stores/useChatStore';
+import { useMessageUIStore } from '../stores/useMessageUIStore';
+import { MessageBubble } from './MessageBubble';
 import { useAuth } from '../hooks/chats/useChatsZustand';
 import { useSettings } from '../hooks/useSettings';
 
@@ -43,12 +45,7 @@ function formatDateSeparator(dateStr: string): string {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
-function ReadReceipt({ status }: { status?: MessageStatus }) {
-  if (!status || status === 'sending') return null;
-  if (status === 'sent') return <Check className="h-3.5 w-3.5 text-text-muted" />;
-  if (status === 'delivered') return <CheckCheck className="h-3.5 w-3.5 text-text-muted" />;
-  return <CheckCheck className="h-3.5 w-3.5 text-text-link" />;
-}
+// ReadReceipt moved into MessageBubble
 
 export function ChatWindow({
   chatId,
@@ -72,12 +69,19 @@ export function ChatWindow({
 
   const [showChatMenu, setShowChatMenu] = React.useState(false);
 
-  const [deletingMessageId, setDeletingMessageId] = React.useState<string | null>(null);
   const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || EMPTY_TYPING_USERS);
   const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
+  const replyToMessageId = useMessageUIStore((s) => s.replyToMessageId);
+  const setReplyTo = useMessageUIStore((s) => s.setReplyTo);
+  const reactionsMap = useMessageUIStore((s) => s.reactions);
+  const toggleReaction = useMessageUIStore((s) => s.toggleReaction);
+  const replyToMessage = React.useMemo(
+    () => replyToMessageId ? messages.find((m) => m.id === replyToMessageId) : null,
+    [replyToMessageId, messages]
+  );
 
   // Auto-resize textarea
   React.useEffect(() => {
@@ -295,82 +299,29 @@ export function ChatWindow({
                       </span>
                     </div>
                   )}
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                      'flex',
-                      message.isOwn ? 'justify-end' : 'justify-start'
-                    )}
-                  >
-                    {!message.isOwn && (
-                      <Avatar
-                        size="sm"
-                        fallback={message.sender?.avatar_url || message.sender?.avatar || message.sender?.full_name?.[0] || '?'}
-                        className="mr-2"
-                      />
-                    )}
-                    <div
-                      className={cn(
-                        'max-w-[65%] rounded-xl px-4 py-2 min-h-[32px] break-words group relative',
-                        message.isOwn
-                          ? 'bubble-outgoing'
-                          : 'bubble-incoming'
-                      )}
-                    >
-                      {/* Кнопка удаления (появляется при наведении) */}
-                      <button
-                        onClick={() => setDeletingMessageId(message.id)}
-                        className={cn(
-                          "absolute -top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-bg-panel border border-border-soft shadow-sm hover:text-red-500",
-                          message.isOwn ? "-left-8" : "-right-8"
-                        )}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-
-                      {/* Меню подтверждения удаления */}
-                      {deletingMessageId === message.id && (
-                        <div className="absolute z-50 bottom-full mb-2 bg-bg-panel border border-border-soft rounded-lg shadow-xl p-2 min-w-[160px] animate-in fade-in slide-in-from-bottom-2">
-                          <div className="flex justify-between items-center mb-2 px-1">
-                            <span className="text-[10px] font-bold uppercase text-text-muted">Удалить сообщение?</span>
-                            <button onClick={() => setDeletingMessageId(null)}><X className="h-3 w-3" /></button>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <button
-                              onClick={async () => {
-                                await deleteMessageForMe(message.id);
-                                setDeletingMessageId(null);
-                              }}
-                              className="text-left px-2 py-1.5 text-xs hover:bg-bg-elevated rounded transition-colors"
-                            >
-                              Удалить у меня
-                            </button>
-                            {message.isOwn && (
-                              <button
-                                onClick={async () => {
-                                  await deleteMessageForEveryone(message.id);
-                                  setDeletingMessageId(null);
-                                }}
-                                className="text-left px-2 py-1.5 text-xs text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                              >
-                                Удалить у всех
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <p className="text-sm">{message.content}</p>
-                      <div className={cn(
-                        'mt-1 flex items-center gap-1',
-                        message.isOwn ? 'justify-end' : ''
-                      )}>
-                        <span className="text-xs text-text-muted">{message.timestamp}</span>
-                        {message.isOwn && <ReadReceipt status={message.status} />}
-                      </div>
-                    </div>
-                  </motion.div>
+                  <MessageBubble
+                    id={message.id}
+                    content={message.content || ''}
+                    isOwn={message.isOwn ?? false}
+                    senderName={message.sender?.full_name}
+                    avatarUrl={message.sender?.avatar_url ?? null}
+                    timestamp={message.timestamp}
+                    status={message.status}
+                    isDeleted={!!message.deleted_at}
+                    isEdited={!!message.edited_at}
+                    replyTo={null}
+                    reactions={reactionsMap[message.id] ?? []}
+                    onReact={(msgId, emoji) => toggleReaction(msgId, emoji)}
+                    onReply={(msgId) => setReplyTo(msgId)}
+                    onDelete={async (msgId) => {
+                      if (message.isOwn) {
+                        await deleteMessageForEveryone(msgId);
+                      } else {
+                        await deleteMessageForMe(msgId);
+                      }
+                    }}
+                    onCopy={(text) => navigator.clipboard.writeText(text)}
+                  />
                 </React.Fragment>
               );
             })}
@@ -378,6 +329,26 @@ export function ChatWindow({
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
+
+        {/* Reply bar */}
+        {replyToMessage && (
+          <div className="shrink-0 flex items-center gap-2 border-t border-border-soft bg-bg-sidebar px-4 py-2">
+            <div className="w-0.5 h-8 rounded-full bg-accent-yellow shrink-0" />
+            <div className="flex-1 overflow-hidden">
+              <div className="text-xs font-semibold text-accent-yellow truncate">
+                {replyToMessage.sender?.full_name ?? 'Сообщение'}
+              </div>
+              <div className="text-xs text-text-muted truncate">{replyToMessage.content}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="p-1 rounded-full hover:bg-bg-elevated text-text-muted hover:text-text-primary transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Message Input */}
         <form onSubmit={handleSend} className="shrink-0 border-t border-border-soft bg-bg-sidebar p-3">
