@@ -77,6 +77,7 @@ const STABLE_EMPTY_ARRAY: any[] = [];
 
 export function useMessages({ chatId }: UseMessagesOptions) {
   const currentUserId = useAuthStore((s) => s.currentUserId);
+  const { profile } = useAuth();
   const messages = useChatStore(
     React.useCallback(
       (state) => {
@@ -97,19 +98,15 @@ export function useMessages({ chatId }: UseMessagesOptions) {
     []
   );
 
-  // Fetch messages when chatId changes, but avoid refetching already hydrated chats
+  // Fetch messages when chatId changes — always refetch to get sender info
   React.useEffect(() => {
     if (!chatId || String(chatId).length < 30) {
       if (chatId === '') clearMessages('');
       return;
     }
 
-    if (messages.length > 0) {
-      return;
-    }
-
     fetchMessages(chatId);
-  }, [chatId, messages.length, fetchMessages, clearMessages]);
+  }, [chatId, fetchMessages, clearMessages]);
 
   // Mark as read when chatId changes
   React.useEffect(() => {
@@ -120,18 +117,23 @@ export function useMessages({ chatId }: UseMessagesOptions) {
 
   // Send message
   const sendMessage = React.useCallback(
-    async (content: string, type: string = 'text') => {
+    async (content: string, type: string = 'text', replyToMessageId?: string | null) => {
       if (!chatId || !content.trim() || !currentUserId) return null;
 
       try {
+        const insertData: Record<string, unknown> = {
+          chat_id: chatId,
+          sender_id: currentUserId,
+          content,
+          message_type: type,
+        };
+        if (replyToMessageId) {
+          insertData.reply_to_message_id = replyToMessageId;
+        }
+
         const { data, error } = await supabase
           .from('messages')
-          .insert({
-            chat_id: chatId,
-            sender_id: currentUserId,
-            content,
-            message_type: type,
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -142,9 +144,29 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         }
 
         if (data) {
+          // Загружаем reply info из локальных сообщений
+          let replyToInfo: { id: string; senderName: string; content: string } | undefined;
+          if (replyToMessageId) {
+            const allMsgs = useChatStore.getState().messages[chatId] || [];
+            const origMsg = allMsgs.find((m: any) => m.id === replyToMessageId);
+            if (origMsg) {
+              replyToInfo = {
+                id: origMsg.id,
+                senderName: origMsg.sender?.full_name || 'Пользователь',
+                content: origMsg.content || '📎 Вложение',
+              };
+            }
+          }
+
           useChatStore.getState().addMessage({
             ...data,
             isOwn: true,
+            sender: profile ? {
+              id: currentUserId,
+              full_name: profile.full_name || 'Вы',
+              avatar_url: profile.avatar_url || null,
+            } : undefined,
+            replyTo: replyToInfo,
           });
         }
 
@@ -154,7 +176,7 @@ export function useMessages({ chatId }: UseMessagesOptions) {
         return null;
       }
     },
-    [chatId, currentUserId]
+    [chatId, currentUserId, profile]
   );
 
   return {

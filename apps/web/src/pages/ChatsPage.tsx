@@ -7,6 +7,7 @@ import { useResizable } from '../hooks/useResizable';
 import { useState, useEffect, useMemo } from 'react';
 import { getChatAvatarData } from '@/lib/chatAvatar';
 import { useChatStore, getTotalUnread } from '@/stores/useChatStore';
+import { useMessageUIStore } from '@/stores/useMessageUIStore';
 
 export function ChatsPage() {
   // =====================================================
@@ -22,6 +23,8 @@ export function ChatsPage() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const setSelectedChatIdStore = useChatStore((state) => state.setSelectedChatId);
   const { messages = [], sendMessage } = useMessages({ chatId: selectedChatId }) as any;
+  const replyToMessageId = useMessageUIStore((s) => s.replyToMessageId);
+  const setReplyTo = useMessageUIStore((s) => s.setReplyTo);
   const chatListResizer = useResizable({
     key: 'messenger_chatlist_width',
     minWidth: 72,
@@ -142,7 +145,11 @@ export function ChatsPage() {
   };
 
   const handleSendMessage = async (content: string) => {
-    await sendMessage(content);
+    await sendMessage(content, 'text', replyToMessageId);
+    // Сбрасываем reply после отправки
+    if (replyToMessageId) {
+      setReplyTo(null);
+    }
   };
 
   // Трансформируем сообщения из формата store в формат ChatWindow
@@ -156,12 +163,14 @@ export function ChatsPage() {
       return {
         ...msg,
         isOwn: typeof msg.isOwn === 'boolean' ? msg.isOwn : msg.sender_id === profile?.id,
+        sender_id: msg.sender_id,
         date,
         timestamp: time,
         sender: msg.sender ? {
           ...msg.sender,
           avatar: msg.sender.avatar_url || msg.sender.full_name?.[0] || '?',
         } : undefined,
+        replyTo: msg.replyTo || null,
       };
     });
   }, [messages, profile?.id]);

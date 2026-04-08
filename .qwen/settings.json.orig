@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "mcp-proxy": {
+      "command": "node",
+      "args": ["C:/Projects/mcp-proxy/build/index.js"]
+    },
+    "messenger-fs": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:/Projects/Messenger", "C:/Projects/mcp-proxy"]
+    },
+    "github-tools": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ТВОЙ_GITHUB_ТОКЕН"
+      }
+    },
+    "web-fetcher": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "logic-planner": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    }
+  }
+}

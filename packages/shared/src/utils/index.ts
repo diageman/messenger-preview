@@ -167,3 +167,28 @@ export function capitalize(text: string): string {
   if (!text) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/**
+ * Извлекает инициалы из полного имени.
+ * Обрабатывает краевые случаи: null/undefined, пустая строка,
+ * только одно имя, лишние пробелы, многосоставные имена.
+ *
+ * @example
+ * getInitials('Иван Петров')    → 'ИП'
+ * getInitials('Иван')            → 'И'
+ * getInitials('  Иван   Петров ') → 'ИП'
+ * getInitials(null)              → '?'
+ * getInitials('')                → '?'
+ */
+export function getInitials(name?: string | null): string {
+  if (!name || name.trim() === '') return '?';
+
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+
+  // Берём первую букву первого и последнего слова
+  // "Иван Петрович Петров" → "ИП"
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}

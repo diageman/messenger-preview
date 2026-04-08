@@ -1,5 +1,6 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { useMessageUIStore } from '@/stores/useMessageUIStore';
+import { getInitials } from '@/lib/getInitials';
 import styles from './MessageBubble.module.css';
 
 export interface MessageBubbleProps {
@@ -14,6 +15,7 @@ export interface MessageBubbleProps {
   reactions?: Array<{ emoji: string; count: number; myReaction: boolean }>;
   isDeleted?: boolean;
   isEdited?: boolean;
+  showAvatar?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (messageId: string) => void;
   onDelete?: (messageId: string) => void;
@@ -71,6 +73,7 @@ function useSwipeToReply(
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   id, content, isOwn, senderName, avatarUrl, timestamp,
   status = 'sent', replyTo, reactions, isDeleted, isEdited,
+  showAvatar = true,
   onReact, onReply, onDelete, onCopy,
 }) => {
   const activeReactionMessageId = useMessageUIStore((s) => s.activeReactionMessageId);
@@ -126,12 +129,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ↩
       </div>
 
-      {/* Аватар (только для чужих) */}
-      {!isOwn && (
+      {/* Аватар (только для чужих и только если showAvatar) */}
+      {!isOwn && showAvatar && (
         <div className={styles.avatar}>
           {avatarUrl
             ? <img src={avatarUrl} alt={senderName} />
-            : <span>{senderName?.[0] ?? '?'}</span>}
+            : <span>{getInitials(senderName)}</span>}
         </div>
       )}
 
@@ -191,7 +194,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 {r.emoji} <span>{r.count}</span>
               </button>
             ))}
-            <button className={styles.addReactionBtn} onClick={() => openReactions(id)}>+</button>
+            {/* Кнопка "+" — скрыта если уже 2 свои реакции (лимит исчерпан) */}
+            {reactions.filter((r) => r.myReaction).length < 2 && (
+              <button className={styles.addReactionBtn} onClick={() => openReactions(id)}>+</button>
+            )}
           </div>
         )}
       </div>
@@ -222,7 +228,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         >
           <button onClick={() => { onCopy?.(content); closeContextMenu(); }}>📋 Копировать</button>
           <button onClick={() => { setReplyTo(id); onReply?.(id); closeContextMenu(); }}>↩ Ответить</button>
-          <button onClick={() => { openReactions(id); closeContextMenu(); }}>😊 Реакция</button>
+          {(reactions ?? []).filter((r) => r.myReaction).length < 2 && (
+            <button onClick={() => { openReactions(id); closeContextMenu(); }}>😊 Реакция</button>
+          )}
           {isOwn && (
             <button className={styles.contextMenuDelete}
               onClick={() => { onDelete?.(id); closeContextMenu(); }}>🗑 Удалить</button>

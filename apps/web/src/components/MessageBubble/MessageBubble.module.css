@@ -9,13 +9,12 @@
 
 .wrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 6px;
   padding: 2px 12px;
   position: relative;
   transition: transform 0.18s cubic-bezier(.35,.35,.47,1.34);
   transform: translateX(var(--swipe-offset, 0px));
-  /* will-change убран: создавал новый stacking context, из-за чего пикер и меню обрезались соседними сообщениями */
 }
 
 .wrapperActive {

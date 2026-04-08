@@ -12,6 +12,7 @@ import { useMessageUIStore } from '../stores/useMessageUIStore';
 import { MessageBubble } from './MessageBubble';
 import { useAuth } from '../hooks/chats/useChatsZustand';
 import { useSettings } from '../hooks/useSettings';
+import { useShallow } from 'zustand/react/shallow';
 
 // ===== MAIN COMPONENT =====
 export interface ChatWindowProps {
@@ -73,11 +74,16 @@ export function ChatWindow({
   const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
-  const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
-  const replyToMessageId = useMessageUIStore((s) => s.replyToMessageId);
-  const setReplyTo = useMessageUIStore((s) => s.setReplyTo);
-  const reactionsMap = useMessageUIStore((s) => s.reactions);
-  const toggleReaction = useMessageUIStore((s) => s.toggleReaction);
+
+  // Оптимизированные селекторы с useShallow для предотвращения лишних рендеров
+  const { replyToMessageId, setReplyTo, reactionsMap, toggleReaction } = useMessageUIStore(
+    useShallow((s) => ({
+      replyToMessageId: s.replyToMessageId,
+      setReplyTo: s.setReplyTo,
+      reactionsMap: s.reactions,
+      toggleReaction: s.toggleReaction,
+    }))
+  );
   const replyToMessage = React.useMemo(
     () => replyToMessageId ? messages.find((m) => m.id === replyToMessageId) : null,
     [replyToMessageId, messages]
@@ -93,22 +99,10 @@ export function ChatWindow({
 
   // Auto-scroll to bottom when messages change
   React.useEffect(() => {
-    if (autoScrollEnabled && messagesEndRef.current) {
+    if (messagesEndRef.current && messages.length > 0) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, autoScrollEnabled]);
-
-  // Track scroll position to determine if we should auto-scroll
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
-    const scrollTop = target.scrollTop;
-    const scrollHeight = target.scrollHeight;
-    const clientHeight = target.clientHeight;
-    
-    // Enable auto-scroll if user is near bottom (within 100px)
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setAutoScrollEnabled(isNearBottom);
-  };
+  }, [messages.length, messages[messages.length - 1]?.id]);
 
   const handleSend = React.useCallback((e?: React.FormEvent) => {
     // Предотвращаем перезагрузку страницы
@@ -285,11 +279,21 @@ export function ChatWindow({
         </header>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-4" onScroll={handleScroll}>
+        <ScrollArea className="flex-1 p-4">
           <div className="space-y-2">
             {messages.map((message, index) => {
               const prevDate = index > 0 ? messages[index - 1].date : null;
               const showDateSeparator = message.date !== prevDate;
+
+              // === Группировка аватарок ===
+              // Аватар показываем только если:
+              // 1. Это чужое сообщение (!isOwn)
+              // 2. Первое сообщение в списке ИЛИ предыдущее от другого автора
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const showAvatar =
+                !message.isOwn &&
+                (!prevMsg || prevMsg.sender_id !== message.sender_id);
+
               return (
                 <React.Fragment key={message.id}>
                   {showDateSeparator && (
@@ -303,13 +307,14 @@ export function ChatWindow({
                     id={message.id}
                     content={message.content || ''}
                     isOwn={message.isOwn ?? false}
-                    senderName={message.sender?.full_name}
+                    senderName={message.sender?.full_name || 'Пользователь'}
                     avatarUrl={message.sender?.avatar_url ?? null}
                     timestamp={message.timestamp}
                     status={message.status}
                     isDeleted={!!message.deleted_at}
                     isEdited={!!message.edited_at}
-                    replyTo={null}
+                    showAvatar={showAvatar}
+                    replyTo={message.replyTo || null}
                     reactions={reactionsMap[message.id] ?? []}
                     onReact={(msgId, emoji) => toggleReaction(msgId, emoji)}
                     onReply={(msgId) => setReplyTo(msgId)}

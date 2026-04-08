@@ -45,6 +45,11 @@ export interface Message {
     avatar_url: string | null;
   };
   isOwn?: boolean;
+  replyTo?: {
+    id: string;
+    senderName: string;
+    content: string;
+  };
 }
 
 export interface ChatItem {
@@ -451,7 +456,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             user_id, role,
             profiles:user_id (id, full_name, email, avatar_url, status, role)
           ),
-          messages (id, content, sender_id, created_at)
+          messages (
+            id,
+            content,
+            sender_id,
+            created_at,
+            sender:sender_id (id, full_name, avatar_url)
+          )
         `)
         .in('id', chatIds)
         .order('updated_at', { ascending: false });
@@ -570,7 +581,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .from('messages')
         .select(`
           *,
-          sender:sender_id (id, full_name, avatar_url)
+          sender:sender_id (id, full_name, avatar_url),
+          reply_message:reply_to_message_id (
+            id,
+            content,
+            sender:sender_id (full_name)
+          )
         `)
         .eq('chat_id', chatId)
         .is('deleted_at', null);
@@ -583,10 +599,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (error) throw error;
 
-      const messagesWithOwn = (data || []).map((msg: any) => ({
-        ...msg,
-        isOwn: msg.sender_id === currentUserId,
-      }));
+      // FALLBACK: если JOIN вернул null для sender (RLS блокирует),
+      // загружаем профили отдельно для всех уникальных sender_id
+      let profilesCache: Record<string, { id: string; full_name: string; avatar_url: string | null }> = {};
+      const missingSenderIds = new Set<string>();
+
+      for (const msg of data || []) {
+        if (!msg.sender && msg.sender_id && msg.sender_id !== currentUserId) {
+          missingSenderIds.add(msg.sender_id);
+        }
+      }
+
+      if (missingSenderIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', Array.from(missingSenderIds));
+
+        if (profiles) {
+          for (const p of profiles) {
+            profilesCache[p.id] = {
+              id: p.id,
+              full_name: p.full_name,
+              avatar_url: p.avatar_url,
+            };
+          }
+        }
+      }
+
+      const messagesWithOwn = (data || []).map((msg: any) => {
+        // Если JOIN вернул null sender — берём из fallback кэша
+        const sender = msg.sender || profilesCache[msg.sender_id] || undefined;
+
+        const replyTo = msg.reply_message
+          ? {
+              id: msg.reply_message.id,
+              senderName: msg.reply_message.sender?.full_name || 'Пользователь',
+              content: msg.reply_message.content || '📎 Вложение',
+            }
+          : undefined;
+
+        return {
+          ...msg,
+          sender,
+          isOwn: msg.sender_id === currentUserId,
+          replyTo,
+        };
+      });
 
       set((state) => ({
         messages: {
@@ -856,15 +915,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
           // Если данных отправителя нет (обычно в Realtime Payload), пробуем их достать
           let senderInfo = newMessage.sender;
-          
+
           if (!senderInfo) {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('id, full_name, avatar_url')
+              .select('id, full_name, email, avatar_url')
               .eq('id', newMessage.sender_id)
               .single();
-            
+
             if (profile) senderInfo = profile;
+          }
+
+          // Загружаем reply info если сообщение — ответ
+          let replyTo: Message['replyTo'] = undefined;
+          if (newMessage.reply_to_message_id) {
+            const { data: origMsg } = await supabase
+              .from('messages')
+              .select('id, content, sender:sender_id (full_name)')
+              .eq('id', newMessage.reply_to_message_id)
+              .single();
+
+            if (origMsg) {
+              const senderName = (origMsg as any).sender?.full_name || 'Пользователь';
+              replyTo = {
+                id: origMsg.id,
+                senderName,
+                content: origMsg.content || '📎 Вложение',
+              };
+            }
           }
 
           const messageWithSender: Message = {
@@ -872,9 +950,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             isOwn: isOwnMessage(newMessage.sender_id, currentUserId),
             sender: {
               id: newMessage.sender_id,
-              full_name: senderInfo?.full_name || 'Сотрудник',
+              full_name: senderInfo?.full_name || `User ${newMessage.sender_id.slice(0, 8)}`,
               avatar_url: senderInfo?.avatar_url || null,
             },
+            replyTo,
           };
 
           get().applyIncomingMessage(messageWithSender);
@@ -1035,7 +1114,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       )
       .subscribe();
 
-    // Подписка на изменения реакций
+    // Подписка на изменения реакций (SSE / Realtime)
+    // ИСПОЛЬЗУЕТ applySseReaction из useMessageUIStore для SSE dedup
     supabase
       .channel('public:message-reactions')
       .on(
@@ -1043,23 +1123,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         { event: 'INSERT', schema: 'public', table: 'message_reactions' },
         (payload) => {
           const { message_id, user_id, emoji } = payload.new as any;
-          const { currentUserId } = useAuthStore.getState();
-          const myReaction = user_id === currentUserId;
           import('./useMessageUIStore').then(({ useMessageUIStore }) => {
-            const state = useMessageUIStore.getState();
-            const current = state.reactions[message_id] ?? [];
-            const existing = current.find((r) => r.emoji === emoji);
-            let next;
-            if (existing) {
-              next = current.map((r) =>
-                r.emoji === emoji
-                  ? { ...r, count: r.count + 1, myReaction: myReaction || r.myReaction }
-                  : r
-              );
-            } else {
-              next = [...current, { emoji, count: 1, myReaction }];
-            }
-            useMessageUIStore.setState({ reactions: { ...state.reactions, [message_id]: next } });
+            useMessageUIStore.getState().applySseReaction(message_id, user_id, emoji, 'INSERT');
           });
         }
       )
@@ -1068,24 +1133,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         { event: 'DELETE', schema: 'public', table: 'message_reactions' },
         (payload) => {
           const { message_id, user_id, emoji } = payload.old as any;
-          const { currentUserId } = useAuthStore.getState();
-          if (user_id !== currentUserId) {
-            import('./useMessageUIStore').then(({ useMessageUIStore }) => {
-              const state = useMessageUIStore.getState();
-              const current = state.reactions[message_id] ?? [];
-              const existing = current.find((r) => r.emoji === emoji);
-              if (!existing) return;
-              let next;
-              if (existing.count <= 1) {
-                next = current.filter((r) => r.emoji !== emoji);
-              } else {
-                next = current.map((r) =>
-                  r.emoji === emoji ? { ...r, count: r.count - 1 } : r
-                );
-              }
-              useMessageUIStore.setState({ reactions: { ...state.reactions, [message_id]: next } });
-            });
-          }
+          import('./useMessageUIStore').then(({ useMessageUIStore }) => {
+            useMessageUIStore.getState().applySseReaction(message_id, user_id, emoji, 'DELETE');
+          });
         }
       )
       .subscribe();

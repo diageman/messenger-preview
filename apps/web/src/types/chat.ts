@@ -43,6 +43,8 @@ export interface Message {
   reactions?: { emoji: string; count: number; users: string[] }[];
   deleted_at?: string | null;
   edited_at?: string | null;
+  sender_id?: string;
+  replyTo?: { id: string; senderName: string; content: string } | null;
 }
 
 export interface Chat {
