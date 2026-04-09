@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "messenger-fs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:/Projects/Messenger",
+        "C:/Projects/mcp-proxy"
+      ]
+    },
+    
+    },
+    "web-fetcher": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ]
+    },
+    "logic-planner": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    }
+  },
+  "$version": 3
+}
