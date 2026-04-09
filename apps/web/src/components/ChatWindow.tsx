@@ -1,15 +1,19 @@
 import * as React from 'react';
+import { useRef } from 'react';
 import { cn } from '@messenger/ui';
 import { Avatar } from '@messenger/ui';
 import { Button } from '@messenger/ui';
 import { ScrollArea } from '@messenger/ui';
 import { motion } from 'framer-motion';
 import { Send, Paperclip, Smile, MessageSquare, Trash2, X, MoreVertical } from 'lucide-react';
+import type { EmojiClickData } from 'emoji-picker-react';
 import type { Message } from '../types/chat';
 import { getChatAvatarData } from '../lib/chatAvatar';
 import { useChatStore } from '../stores/useChatStore';
 import { useMessageUIStore } from '../stores/useMessageUIStore';
 import { MessageBubble } from './MessageBubble';
+import { ReactionContextMenu } from './ReactionContextMenu';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { useAuth } from '../hooks/chats/useChatsZustand';
 import { useSettings } from '../hooks/useSettings';
 import { useShallow } from 'zustand/react/shallow';
@@ -60,6 +64,8 @@ export function ChatWindow({
   peerMember,
 }: ChatWindowProps) {
   const [messageText, setMessageText] = React.useState('');
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
+  const [cursorPosition, setCursorPosition] = React.useState<number | null>(null);
   const { profile } = useAuth();
   const { chats: chatSettings } = useSettings();
   const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
@@ -70,10 +76,36 @@ export function ChatWindow({
 
   const [showChatMenu, setShowChatMenu] = React.useState(false);
 
+  const openContextMenu = useMessageUIStore((s) => s.openContextMenu);
+  const closeContextMenu = useMessageUIStore((s) => s.closeContextMenu);
+
   const typingUsers = useChatStore(state => state.typingUsers[chatId || ''] || EMPTY_TYPING_USERS);
   const lastTypingTime = React.useRef<number>(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Outside click для emoji picker инпута
+  React.useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setIsEmojiPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isEmojiPickerOpen]);
+
+  // Закрытие emoji picker по Escape
+  React.useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsEmojiPickerOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isEmojiPickerOpen]);
 
   // Оптимизированные селекторы с useShallow для предотвращения лишних рендеров
   const { replyToMessageId, setReplyTo, reactionsMap, toggleReaction } = useMessageUIStore(
@@ -126,6 +158,56 @@ export function ChatWindow({
       lastTypingTime.current = now;
     }
   };
+
+  // Отслеживаем позицию курсора для вставки эмодзи
+  const handleSelectInput = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget as HTMLTextAreaElement;
+    setCursorPosition(target.selectionStart);
+  };
+
+  // Вставка эмодзи из пикера в textarea
+  const handleInputEmojiClick = (emojiData: EmojiClickData) => {
+    const pos = cursorPosition ?? messageText.length;
+    const before = messageText.slice(0, pos);
+    const after = messageText.slice(pos);
+    const newText = before + emojiData.emoji + after;
+    setMessageText(newText);
+    setCursorPosition(pos + emojiData.emoji.length);
+    // Закрываем пикер и восстанавливаем фокус
+    setIsEmojiPickerOpen(false);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newPos = pos + emojiData.emoji.length;
+        textareaRef.current.setSelectionRange(newPos, newPos);
+        setCursorPosition(newPos);
+      }
+    }, 0);
+  };
+
+  // Обработчики действий из контекстного меню
+  const handleContextMenuReply = React.useCallback((messageId: string) => {
+    setReplyTo(messageId);
+  }, [setReplyTo]);
+
+  const handleContextMenuCopy = React.useCallback((content: string) => {
+    navigator.clipboard.writeText(content);
+  }, []);
+
+  const handleContextMenuDelete = React.useCallback(async (messageId: string) => {
+    closeContextMenu();
+    const msg = messages.find((m) => m.id === messageId);
+    if (msg?.isOwn) {
+      await deleteMessageForEveryone?.(messageId);
+    } else {
+      await deleteMessageForMe?.(messageId);
+    }
+  }, [messages, deleteMessageForEveryone, deleteMessageForMe, closeContextMenu]);
+
+  // Обёртка для открытия контекстного меню
+  const handleContextMenuOpen = React.useCallback((messageId: string, x: number, y: number, content: string, senderName: string, isOwn: boolean) => {
+    openContextMenu(messageId, x, y, content, senderName, isOwn);
+  }, [openContextMenu]);
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend) {
@@ -318,14 +400,7 @@ export function ChatWindow({
                     reactions={reactionsMap[message.id] ?? []}
                     onReact={(msgId, emoji) => toggleReaction(msgId, emoji)}
                     onReply={(msgId) => setReplyTo(msgId)}
-                    onDelete={async (msgId) => {
-                      if (message.isOwn) {
-                        await deleteMessageForEveryone(msgId);
-                      } else {
-                        await deleteMessageForMe(msgId);
-                      }
-                    }}
-                    onCopy={(text) => navigator.clipboard.writeText(text)}
+                    onContextMenuActions={handleContextMenuOpen}
                   />
                 </React.Fragment>
               );
@@ -366,15 +441,44 @@ export function ChatWindow({
               placeholder="Напишите сообщение..."
               value={messageText}
               onChange={handleInputChange}
+              onSelect={handleSelectInput}
               onKeyDown={handleKeyDown}
               rows={1}
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               className="message-input flex-1 w-full resize-none overflow-y-auto [&::-webkit-scrollbar]:hidden py-2.5 bg-transparent border-none focus:outline-none focus:ring-0 outline-none"
               aria-label="Поле ввода сообщения"
             />
-            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-text-muted hover:text-text-primary shrink-0" title="Эмодзи">
-              <Smile className="h-5 w-5" />
-            </Button>
+            <div className="relative shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsEmojiPickerOpen((v) => !v)}
+                className={cn(
+                  'h-10 w-10 text-text-muted transition-colors',
+                  isEmojiPickerOpen ? 'text-accent-yellow' : 'hover:text-text-primary'
+                )}
+                title="Эмодзи"
+              >
+                <Smile className="h-5 w-5" />
+              </Button>
+
+              {/* Emoji Picker для поля ввода */}
+              {isEmojiPickerOpen && (
+                <div ref={emojiPickerRef} className="absolute right-0 bottom-full mb-2 z-50">
+                  <EmojiPicker
+                    onEmojiClick={handleInputEmojiClick}
+                    width={330}
+                    height={400}
+                    theme={Theme.DARK}
+                    lazyLoadEmojis
+                    searchDisabled={false}
+                    skinTonesDisabled
+                    previewConfig={{ showPreview: false }}
+                  />
+                </div>
+              )}
+            </div>
             <Button
               type="submit"
               variant="ghost"
@@ -394,6 +498,13 @@ export function ChatWindow({
           </div>
         </form>
       </div>
+
+      {/* Глобальное контекстное меню с эмодзи-реакциями */}
+      <ReactionContextMenu
+        onReply={handleContextMenuReply}
+        onCopy={handleContextMenuCopy}
+        onDelete={handleContextMenuDelete}
+      />
     </div>
   );
 }

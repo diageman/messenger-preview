@@ -18,8 +18,7 @@ export interface MessageBubbleProps {
   showAvatar?: boolean;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (messageId: string) => void;
-  onDelete?: (messageId: string) => void;
-  onCopy?: (content: string) => void;
+  onContextMenuActions?: (messageId: string, x: number, y: number, content: string, senderName: string, isOwn: boolean) => void;
 }
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
@@ -74,19 +73,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   id, content, isOwn, senderName, avatarUrl, timestamp,
   status = 'sent', replyTo, reactions, isDeleted, isEdited,
   showAvatar = true,
-  onReact, onReply, onDelete, onCopy,
+  onReact, onReply, onContextMenuActions,
 }) => {
   const activeReactionMessageId = useMessageUIStore((s) => s.activeReactionMessageId);
   const swipeOffsets = useMessageUIStore((s) => s.swipeOffsets);
-  const contextMenuMessageId = useMessageUIStore((s) => s.contextMenuMessageId);
   const openReactions = useMessageUIStore((s) => s.openReactions);
   const closeReactions = useMessageUIStore((s) => s.closeReactions);
-  const openContextMenu = useMessageUIStore((s) => s.openContextMenu);
-  const closeContextMenu = useMessageUIStore((s) => s.closeContextMenu);
   const setReplyTo = useMessageUIStore((s) => s.setReplyTo);
 
   const isReactionOpen = activeReactionMessageId === id;
-  const isContextOpen = contextMenuMessageId === id;
   const swipeOffset = swipeOffsets[id] ?? 0;
 
   const { onTouchStart, onTouchMove, onTouchEnd } = useSwipeToReply(id, isOwn, (msgId) => {
@@ -96,24 +91,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    openContextMenu(id, e.clientX, e.clientY);
-  }, [id, openContextMenu]);
+    if (onContextMenuActions) {
+      onContextMenuActions(id, e.clientX, e.clientY, content, senderName || '', isOwn);
+    }
+  }, [id, content, senderName, isOwn, onContextMenuActions]);
 
   const handleLongPress = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    handleLongPress.current = setTimeout(() => openContextMenu(id, e.clientX, e.clientY), 500);
-  }, [id, openContextMenu]);
+    handleLongPress.current = setTimeout(() => {
+      if (onContextMenuActions) {
+        onContextMenuActions(id, e.clientX, e.clientY, content, senderName || '', isOwn);
+      }
+    }, 500);
+  }, [id, content, senderName, isOwn, onContextMenuActions]);
   const onPointerUp = useCallback(() => {
     if (handleLongPress.current) clearTimeout(handleLongPress.current);
   }, []);
 
-  // Закрываем меню при клике вне
+  // Закрываем пикер реакций при клике вне
   useEffect(() => {
-    if (!isContextOpen && !isReactionOpen) return;
-    const handler = () => { closeContextMenu(); closeReactions(); };
+    if (!isReactionOpen) return;
+    const handler = () => closeReactions();
     document.addEventListener('pointerdown', handler);
     return () => document.removeEventListener('pointerdown', handler);
-  }, [isContextOpen, isReactionOpen, closeContextMenu, closeReactions]);
+  }, [isReactionOpen, closeReactions]);
 
   const statusIcon = {
     sending: '🕐', sent: '✓', delivered: '✓✓', read: '✓✓',
@@ -121,7 +122,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
-      className={`${styles.wrapper} ${isOwn ? styles.own : styles.other} ${(isReactionOpen || isContextOpen) ? styles.wrapperActive : ''}`}
+      className={`${styles.wrapper} ${isOwn ? styles.own : styles.other} ${isReactionOpen ? styles.wrapperActive : ''}`}
       style={{ '--swipe-offset': `${swipeOffset}px` } as React.CSSProperties}
     >
       {/* Иконка reply-свайпа */}
@@ -217,24 +218,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {emoji}
             </button>
           ))}
-        </div>
-      )}
-
-      {/* Контекстное меню */}
-      {isContextOpen && (
-        <div
-          className={`${styles.contextMenu} ${isOwn ? styles.contextMenuOwn : ''}`}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <button onClick={() => { onCopy?.(content); closeContextMenu(); }}>📋 Копировать</button>
-          <button onClick={() => { setReplyTo(id); onReply?.(id); closeContextMenu(); }}>↩ Ответить</button>
-          {(reactions ?? []).filter((r) => r.myReaction).length < 2 && (
-            <button onClick={() => { openReactions(id); closeContextMenu(); }}>😊 Реакция</button>
-          )}
-          {isOwn && (
-            <button className={styles.contextMenuDelete}
-              onClick={() => { onDelete?.(id); closeContextMenu(); }}>🗑 Удалить</button>
-          )}
         </div>
       )}
     </div>

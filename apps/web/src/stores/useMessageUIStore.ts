@@ -33,9 +33,15 @@ interface MessageUIState {
   activeReactionMessageId: string | null;
   // Смещение свайпа по X: messageId -> px
   swipeOffsets: Record<string, number>;
-  // Контекстное меню
-  contextMenuMessageId: string | null;
-  contextMenuPosition: { x: number; y: number } | null;
+  // Контекстное меню (расширенные данные для рендеринга действий)
+  contextMenuData: {
+    messageId: string;
+    x: number;
+    y: number;
+    content: string;
+    senderName: string;
+    isOwn: boolean;
+  } | null;
   // Ответ на сообщение
   replyToMessageId: string | null;
   // Локальные реакции: messageId -> ReactionItem[]
@@ -49,7 +55,7 @@ interface MessageUIState {
   closeReactions: () => void;
   setSwipeOffset: (messageId: string, offset: number) => void;
   resetSwipeOffset: (messageId: string) => void;
-  openContextMenu: (messageId: string, x: number, y: number) => void;
+  openContextMenu: (messageId: string, x: number, y: number, content: string, senderName: string, isOwn: boolean) => void;
   closeContextMenu: () => void;
   setReplyTo: (messageId: string | null) => void;
   toggleReaction: (messageId: string, emoji: string) => void;
@@ -65,8 +71,7 @@ const SSE_DEDUP_TTL_MS = 2000;
 export const useMessageUIStore = create<MessageUIState>((set, get) => ({
   activeReactionMessageId: null,
   swipeOffsets: {},
-  contextMenuMessageId: null,
-  contextMenuPosition: null,
+  contextMenuData: null,
   replyToMessageId: null,
   reactions: {},
   pendingToggles: {},
@@ -86,11 +91,11 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
       return { swipeOffsets: rest };
     }),
 
-  openContextMenu: (messageId, x, y) =>
-    set({ contextMenuMessageId: messageId, contextMenuPosition: { x, y } }),
+  openContextMenu: (messageId, x, y, content, senderName, isOwn) =>
+    set({ contextMenuData: { messageId, x, y, content, senderName, isOwn } }),
 
   closeContextMenu: () =>
-    set({ contextMenuMessageId: null, contextMenuPosition: null }),
+    set({ contextMenuData: null }),
 
   setReplyTo: (messageId) => set({ replyToMessageId: messageId }),
 

@@ -302,3 +302,34 @@ html[data-show-avatars="false"] .relative.shrink-0 {
 html[data-theme="system"] {
   color-scheme: dark;
 }
+
+/* ===== EMOJI PICKER — DARK THEME OVERRIDES ===== */
+/* emoji-picker-react CSS custom properties для тёмной темы */
+emoji-picker-react,
+[class*="EmojiPicker"] {
+  --epr-bg-color: #1E2A35;
+  --epr-text-color: #E6EDF5;
+  --epr-search-bar-bg: #17212B;
+  --epr-search-bar-border-color: rgba(255, 255, 255, 0.08);
+  --epr-category-label-bg: #223242;
+  --epr-hover-bg: #28384A;
+  --epr-active-bg: #2B5278;
+  --epr-focus-bg: #28384A;
+  --epr-category-icon-active-color: #E7B200;
+  --epr-skin-tone-picker-menu-color: #223242;
+  --epr-emoji-variation-picker-bg-color: #1E2A35;
+  --epr-emoji-variation-picker-name-color: #E6EDF5;
+  --epr-dark-mode: true;
+}
+
+/* Переопределение внутренних стилей emoji-picker-react */
+emoji-picker-react::part(emoji),
+[class*="EmojiPicker"] button[class*="emoji"] {
+  filter: none;
+}
+
+emoji-picker-react::part(container),
+[class*="EmojiPicker"] > div {
+  border: 1px solid var(--color-border-soft) !important;
+  border-radius: 12px !important;
+}
