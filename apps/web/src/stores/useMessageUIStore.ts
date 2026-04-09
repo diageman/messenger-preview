@@ -46,6 +46,8 @@ interface MessageUIState {
   replyToMessageId: string | null;
   // Локальные реакции: messageId -> ReactionItem[]
   reactions: Record<string, ReactionItem[]>;
+  // Кэш id -> данные (нужен пока Supabase Realtime не подхватил REPLICA IDENTITY FULL)
+  reactionIdCache: Record<string, { messageId: string; userId: string; emoji: string }>;
   // Debounce: messageId -> pending toggle
   pendingToggles: Record<string, PendingToggle | null>;
   // SSE dedup: Set<"messageId:emoji"> для подавления своих же SSE-событий
@@ -61,6 +63,8 @@ interface MessageUIState {
   toggleReaction: (messageId: string, emoji: string) => void;
   /** Вызывается из useChatStore при получении SSE-события */
   applySseReaction: (messageId: string, userId: string, emoji: string, event: 'INSERT' | 'DELETE') => void;
+  /** Загрузка реакций из БД для конкретного сообщения */
+  loadReactions: (messageId: string) => Promise<void>;
   /** Внутренний: отправка на сервер после debounce */
   _flushToggle: (messageId: string, emoji: string, willAdd: boolean, previousState: ReactionItem[], replacedEmoji?: string) => Promise<void>;
 }
@@ -74,6 +78,7 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
   contextMenuData: null,
   replyToMessageId: null,
   reactions: {},
+  reactionIdCache: {},
   pendingToggles: {},
   myRecentToggles: new Set(),
 
@@ -215,6 +220,7 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
             { onConflict: 'message_id,user_id,emoji' }
           );
         if (upsertErr) {
+          console.error('[Reaction] Upsert failed:', upsertErr);
           // Если DELETE прошёл но upsert упал — откатываем DELETE
           if (oldestDeleted && replacedEmoji) {
             await supabase
@@ -225,6 +231,8 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
               );
           }
           throw upsertErr;
+        } else {
+          console.log('[Reaction] Upsert successful:', { messageId, emoji, currentUserId });
         }
       } else {
         // Снимаем реакцию
@@ -234,9 +242,15 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
           .eq('message_id', messageId)
           .eq('user_id', currentUserId)
           .eq('emoji', emoji);
-        if (error) throw error;
+        if (error) {
+          console.error('[Reaction] Delete failed:', error);
+          throw error;
+        } else {
+          console.log('[Reaction] Delete successful:', { messageId, emoji, currentUserId });
+        }
       }
     } catch (error) {
+      console.error('[Reaction] _flushToggle error, rolling back:', error);
       // Rollback к предыдущему состоянию
       set((s) => ({
         reactions: { ...s.reactions, [messageId]: previousState },
@@ -246,7 +260,7 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
 
   /**
    * Обработка SSE-события реакции из useChatStore
-   * 
+   *
    * Ключевая логика SSE dedup:
    * - Если это наше событие (userId === currentUserId И есть в myRecentToggles) → IGNORE
    * - Если чужое → применяем к reactions
@@ -254,17 +268,28 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
   applySseReaction: (messageId: string, userId: string, emoji: string, event: 'INSERT' | 'DELETE') => {
     const currentUserId = useAuthStore.getState().currentUserId;
     if (!currentUserId) return;
-    if (!messageId || !emoji || !userId) return; // Guard: Supabase иногда шлёт события без полей
+    if (!messageId || !emoji || !userId) {
+      console.warn('[SSE Reaction] Ignoring event with missing fields:', { messageId, userId, emoji, event });
+      return; // Guard: Supabase иногда шлёт события без полей
+    }
+
+    console.log('[SSE Reaction]', event, { messageId, userId, emoji, currentUserId });
 
     const toggleKey = `${messageId}:${emoji}`;
     const myRecentToggles = get().myRecentToggles;
     const isMyEvent = userId === currentUserId && myRecentToggles.has(toggleKey);
 
-    // Если это наше optimistc-событие — игнорируем SSE (мы уже применили локально)
-    if (isMyEvent) return;
+    // Если это наше optimistic-событие — игнорируем SSE (мы уже применили локально)
+    if (isMyEvent) {
+      console.log('[SSE Reaction] Ignoring own event (dedup):', toggleKey);
+      return;
+    }
 
     // Если действие текущего пользователя, но НЕ в dedup — TTL истёк, тоже игнорируем
-    if (userId === currentUserId) return;
+    if (userId === currentUserId) {
+      console.log('[SSE Reaction] Ignoring own event (TTL expired):', toggleKey);
+      return;
+    }
 
     // Чужое событие — применяем
     set((s) => {
@@ -280,10 +305,14 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
         } else {
           next = [...current, { emoji, count: 1, myReaction: false }];
         }
+        console.log('[SSE Reaction] INSERT applied:', { messageId, emoji, newState: next });
       } else {
         // DELETE
         const existing = current.find((r) => r.emoji === emoji);
-        if (!existing) return s; // ничего не делаем
+        if (!existing) {
+          console.log('[SSE Reaction] DELETE ignored — reaction not in local state:', { messageId, emoji });
+          return s; // ничего не делаем
+        }
         if (existing.count <= 1) {
           next = current.filter((r) => r.emoji !== emoji);
         } else {
@@ -291,10 +320,52 @@ export const useMessageUIStore = create<MessageUIState>((set, get) => ({
             r.emoji === emoji ? { ...r, count: r.count - 1 } : r
           );
         }
+        console.log('[SSE Reaction] DELETE applied:', { messageId, emoji, newState: next });
       }
 
       return { reactions: { ...s.reactions, [messageId]: next } };
     });
+  },
+
+  /**
+   * Загрузка реакций из БД для конкретного сообщения.
+   */
+  loadReactions: async (messageId: string) => {
+    const currentUserId = useAuthStore.getState().currentUserId;
+    if (!currentUserId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('message_reactions')
+        .select('id, user_id, emoji')
+        .eq('message_id', messageId);
+
+      if (error) throw error;
+      if (!data || data.length === 0) return;
+
+      const aggregated = new Map<string, ReactionItem>();
+      const idCache = { ...get().reactionIdCache };
+
+      for (const row of data) {
+        idCache[row.id] = { messageId, userId: row.user_id, emoji: row.emoji };
+        const existing = aggregated.get(row.emoji);
+        if (existing) {
+          existing.count += 1;
+          if (row.user_id === currentUserId) existing.myReaction = true;
+        } else {
+          aggregated.set(row.emoji, {
+            emoji: row.emoji, count: 1, myReaction: row.user_id === currentUserId,
+          });
+        }
+      }
+
+      set((s) => ({
+        reactions: { ...s.reactions, [messageId]: Array.from(aggregated.values()) },
+        reactionIdCache: idCache,
+      }));
+    } catch (err) {
+      console.error('[MessageUIStore] Failed to load reactions:', err);
+    }
   },
 }));
 

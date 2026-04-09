@@ -26,3 +26,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Expose Zustand stores for testing (dev only)
+if (import.meta.env.DEV) {
+  import('./stores/useMessageUIStore').then(({ useMessageUIStore }) => {
+    (window as any).__ZUSTAND_STORES__ = { useMessageUIStore };
+  });
+  import('./stores/useChatStore').then(({ useChatStore }) => {
+    (window as any).__ZUSTAND_STORES__ = { ...(window as any).__ZUSTAND_STORES__, useChatStore };
+  });
+}

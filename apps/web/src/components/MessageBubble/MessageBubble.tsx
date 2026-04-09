@@ -189,6 +189,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {reactions.map((r) => (
               <button
                 key={r.emoji}
+                data-reaction-emoji={r.emoji}
                 className={`${styles.reactionPill} ${r.myReaction ? styles.reactionPillActive : ''}`}
                 onClick={() => onReact?.(id, r.emoji)}
               >

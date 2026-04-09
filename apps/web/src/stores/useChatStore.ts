@@ -653,6 +653,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [chatId]: messagesWithOwn,
         },
       }));
+
+      // Загружаем реакции для всех сообщений (batch)
+      if (messagesWithOwn.length > 0) {
+        const { useMessageUIStore } = await import('./useMessageUIStore');
+        const loadReactions = useMessageUIStore.getState().loadReactions;
+        // Загружаем параллельно для всех сообщений
+        await Promise.all(messagesWithOwn.map((msg: any) => loadReactions(msg.id)));
+      }
     } catch (err) {
       console.error('[ChatStore] Error fetching messages:', err);
     }
@@ -1121,26 +1129,51 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'message_reactions' },
-        (payload) => {
+        async (payload) => {
           const { message_id, user_id, emoji } = payload.new as any;
-          import('./useMessageUIStore').then(({ useMessageUIStore }) => {
+          import('./useMessageUIStore').then(async ({ useMessageUIStore }) => {
             useMessageUIStore.getState().applySseReaction(message_id, user_id, emoji, 'INSERT');
+            // Обновляем кэш id (пока Supabase Realtime не подхватил REPLICA IDENTITY FULL)
+            await useMessageUIStore.getState().loadReactions(message_id);
           });
         }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'message_reactions' },
-        (payload) => {
-          const { message_id, user_id, emoji } = payload.old as any;
+        async (payload) => {
+          const old = payload.old as any;
+          let message_id = old.message_id;
+          let user_id = old.user_id;
+          let emoji = old.emoji;
+
+          if (!message_id || !emoji) {
+            // Supabase Realtime ещё не подхватил REPLICA IDENTITY FULL — используем кэш
+            const { useMessageUIStore } = await import('./useMessageUIStore');
+            const cache = useMessageUIStore.getState().reactionIdCache;
+            if (old.id && cache[old.id]) {
+              ({ messageId: message_id, userId: user_id, emoji } = cache[old.id]);
+              const newCache = { ...useMessageUIStore.getState().reactionIdCache };
+              delete newCache[old.id];
+              useMessageUIStore.setState({ reactionIdCache: newCache });
+            } else {
+              return;
+            }
+          }
+
           import('./useMessageUIStore').then(({ useMessageUIStore }) => {
             useMessageUIStore.getState().applySseReaction(message_id, user_id, emoji, 'DELETE');
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[SSE] Reaction channel status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[SSE] Reaction channel ERROR!');
+        }
+      });
 
-    console.log('[ChatStore] Realtime subscriptions initialized');
+    console.log('[ChatStore] Realtime reactions subscription initialized');
   },
 }));
 

@@ -385,6 +385,7 @@ export function ChatWindow({
                       </span>
                     </div>
                   )}
+                  <div data-message-id={message.id}>
                   <MessageBubble
                     id={message.id}
                     content={message.content || ''}
@@ -402,6 +403,7 @@ export function ChatWindow({
                     onReply={(msgId) => setReplyTo(msgId)}
                     onContextMenuActions={handleContextMenuOpen}
                   />
+                  </div>
                 </React.Fragment>
               );
             })}
