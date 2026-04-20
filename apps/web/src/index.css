@@ -9,6 +9,10 @@
   --color-bg-elevated: #223242;
   --color-bg-hover: #28384A;
 
+  /* Background aliases for UI components */
+  --color-background-primary: #0E1621;
+  --color-background-secondary: #1E2A35;
+
   /* Message bubbles */
   --color-bubble-incoming: #1F2C39;
   --color-bubble-outgoing: #2B5278;
@@ -56,6 +60,65 @@
   --shadow-default: 0 2px 4px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== LIGHT THEME — Telegram Style Redesign ===== */
+/* Мягкая, чистая палитра как в Telegram */
+[data-theme="light"] {
+  /* Фон — мягкий off-white, не чистый белый */
+  --color-bg-app: #F4F5F7;
+  --color-bg-sidebar: #FFFFFF;
+  --color-bg-panel: #FFFFFF;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-hover: #F0F2F5;
+
+  /* Background aliases for UI components */
+  --color-background-primary: #F4F5F7;
+  --color-background-secondary: #FFFFFF;
+
+  /* Message bubbles — мягкие серые тона */
+  --color-bubble-incoming: #E8ECEF;
+  --color-bubble-outgoing: #EFFDDE;
+  --color-bubble-outgoing-hover: #E3F5D0;
+
+  /* Текст — глубокий серый, не чёрный */
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #65676B;
+  --color-text-muted: #8A8D91;
+  --color-text-link: #0078D4;
+
+  /* Границы — мягкие, невидимые */
+  --color-border-soft: rgba(0, 0, 0, 0.05);
+  --color-border-subtle: rgba(0, 0, 0, 0.07);
+  --color-border-default: rgba(0, 0, 0, 0.09);
+
+  /* Акцент — сохраняем жёлтый для консистентности с тёмной темой */
+  --color-accent-yellow: #E7B200;
+  --color-accent-yellow-muted: rgba(231, 178, 0, 0.1);
+
+  /* Semantic */
+  --color-success: #3DA87A;
+  --color-warning: #D4A000;
+  --color-error: #E53935;
+  --color-info: #0078D4;
+
+  /* Taxi segments */
+  --color-taxi-economy: #3DA87A;
+  --color-taxi-comfort: #2B7FD4;
+  --color-taxi-business: #9B59D0;
+  --color-taxi-premium: #D4A000;
+  --color-taxi-courier: #E07040;
+  --color-taxi-cargo: #7A8E99;
+
+  /* Scrollbar — мягкий серый */
+  --color-scrollbar-thumb: #D1D5DB;
+  --color-scrollbar-thumb-hover: #B0B5BD;
+
+  /* Тени — минимальные, без "грязи" */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-default: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.07);
 }
 
 /* ===== BASE STYLES ===== */
@@ -301,6 +364,29 @@ html[data-show-avatars="false"] .relative.shrink-0 {
 /* ===== SETTINGS: THEME SYSTEM (prep for light theme) ===== */
 html[data-theme="system"] {
   color-scheme: dark;
+}
+
+/* ===== SETTINGS: TEXT SIZE ===== */
+[data-text-size="small"] .message-text,
+[data-text-size="small"] .text,
+[data-text-size="small"] .content {
+  font-size: 0.8125rem;
+}
+[data-text-size="medium"] .message-text,
+[data-text-size="medium"] .text,
+[data-text-size="medium"] .content {
+  font-size: 0.9375rem;
+}
+[data-text-size="large"] .message-text,
+[data-text-size="large"] .text,
+[data-text-size="large"] .content {
+  font-size: 1.125rem;
+}
+
+/* ===== SETTINGS: SHOW/HIDE AVATARS ===== */
+[data-show-avatars="false"] [class*="avatar"],
+[data-show-avatars="false"] [class*="Avatar"] {
+  display: none !important;
 }
 
 /* ===== EMOJI PICKER — DARK THEME OVERRIDES ===== */

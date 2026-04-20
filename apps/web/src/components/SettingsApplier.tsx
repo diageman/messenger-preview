@@ -1,28 +1,20 @@
 import { useEffect } from 'react';
-import { useSettings } from '../hooks/useSettings';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 /**
- * Applies user settings to the DOM via data-attributes on <html>.
- * CSS rules in index.css react to these attributes.
- * Placed once inside App, works globally.
+ * Применяет настройки из useSettingsStore к DOM через data-attributes на <html>.
+ * CSS-правила в index.css реагируют на эти атрибуты.
  */
 export function SettingsApplier() {
-  const { appearance, chats } = useSettings();
+  const { theme, textSize, showAvatars, sendOnEnter } = useSettingsStore();
 
   useEffect(() => {
     const root = document.documentElement;
-
-    root.setAttribute('data-theme', appearance.theme);
-    root.setAttribute('data-density', appearance.density);
-    root.setAttribute('data-text-size', appearance.textSize);
-    root.setAttribute('data-animations', String(appearance.animations));
-    root.setAttribute('data-show-avatars', String(appearance.showAvatars));
-  }, [appearance]);
-
-  // Expose enterToSend for ChatWindow via a simple data-attr
-  useEffect(() => {
-    document.documentElement.setAttribute('data-enter-to-send', String(chats.enterToSend));
-  }, [chats.enterToSend]);
+    root.setAttribute('data-theme', theme);
+    root.setAttribute('data-text-size', textSize);
+    root.setAttribute('data-show-avatars', String(showAvatars));
+    root.setAttribute('data-send-on-enter', String(sendOnEnter));
+  }, [theme, textSize, showAvatars, sendOnEnter]);
 
   return null;
 }

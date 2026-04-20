@@ -15,7 +15,7 @@ import { MessageBubble } from './MessageBubble';
 import { ReactionContextMenu } from './ReactionContextMenu';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { useAuth } from '../hooks/chats/useChatsZustand';
-import { useSettings } from '../hooks/useSettings';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { useShallow } from 'zustand/react/shallow';
 
 // ===== MAIN COMPONENT =====
@@ -39,12 +39,21 @@ export interface ChatWindowProps {
 const EMPTY_TYPING_USERS: string[] = [];
 
 // ===== HELPERS =====
+function getLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function formatDateSeparator(dateStr: string): string {
   const today = new Date();
   const date = new Date(dateStr);
-  const todayStr = today.toISOString().slice(0, 10);
-  const yesterdayStr = new Date(today.getTime() - 86400000).toISOString().slice(0, 10);
-  const dateOnly = date.toISOString().slice(0, 10);
+  const todayStr = getLocalDateKey(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayStr = getLocalDateKey(yesterday);
+  const dateOnly = getLocalDateKey(date);
   if (dateOnly === todayStr) return 'Сегодня';
   if (dateOnly === yesterdayStr) return 'Вчера';
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
@@ -67,7 +76,7 @@ export function ChatWindow({
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = React.useState(false);
   const [cursorPosition, setCursorPosition] = React.useState<number | null>(null);
   const { profile } = useAuth();
-  const { chats: chatSettings } = useSettings();
+  const sendOnEnter = useSettingsStore((s) => s.sendOnEnter);
   const sendTypingStatus = useChatStore(state => state.sendTypingStatus);
   const deleteMessageForMe = useChatStore(state => state.deleteMessageForMe);
   const deleteMessageForEveryone = useChatStore(state => state.deleteMessageForEveryone);
@@ -209,12 +218,16 @@ export function ChatWindow({
     openContextMenu(messageId, x, y, content, senderName, isOwn);
   }, [openContextMenu]);
 
-  const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend) {
-      e.preventDefault();
-      handleSend();
+  const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (sendOnEnter && !e.shiftKey) {
+        // Enter отправляет, Shift+Enter — перенос строки
+        e.preventDefault();
+        handleSend();
+      }
+      // Если sendOnEnter=false: Enter делает перенос строки (стандартное поведение textarea)
     }
-  }, [handleSend, chatSettings.enterToSend]);
+  }, [handleSend, sendOnEnter]);
 
   // Compute chat display data from props using unified helper
   const avatarData = getChatAvatarData(
@@ -229,8 +242,8 @@ export function ChatWindow({
   const displayName = avatarData.title;
   const displayAvatar = avatarData.initials;
   const displayDescription = chatDescription || '';
-  const displayStatus = isDirectChat && chatParticipants.length > 0
-    ? chatParticipants[0].status
+  const displayStatus = isDirectChat
+    ? peerMember?.profiles?.status ?? chatParticipants.find((participant) => participant.name === displayName)?.status
     : undefined;
 
   // No chat selected

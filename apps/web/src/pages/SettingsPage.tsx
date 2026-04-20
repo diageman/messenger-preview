@@ -24,6 +24,7 @@ import {
   Check,
   Monitor,
   Moon,
+  Sun,
   Type,
   Sparkles,
   LayoutGrid,
@@ -41,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/auth/useAuth';
 import { useSettings } from '../hooks/useSettings';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@messenger/ui';
 
@@ -78,6 +80,12 @@ export function SettingsPage() {
     resetAllSettings,
     clearLocalData,
   } = useSettings();
+
+  // Новый Zustand store для 4 ключевых настроек UI
+  const theme = useSettingsStore((s) => s.theme);
+  const textSize = useSettingsStore((s) => s.textSize);
+  const showAvatars = useSettingsStore((s) => s.showAvatars);
+  const sendOnEnter = useSettingsStore((s) => s.sendOnEnter);
 
   // Используем профиль из auth, а не из localStorage
   const profile = authProfile || {
@@ -485,14 +493,20 @@ export function SettingsPage() {
                   <label className="text-xs font-medium text-text-secondary">Тема</label>
                   <div className="flex gap-2">
                     <SegmentedButton
-                      active={appearance.theme === 'dark'}
-                      onClick={() => updateAppearance({ theme: 'dark' })}
+                      active={theme === 'dark'}
+                      onClick={() => useSettingsStore.getState().setTheme('dark')}
                       icon={Moon}
                       label="Dark"
                     />
                     <SegmentedButton
-                      active={appearance.theme === 'system'}
-                      onClick={() => updateAppearance({ theme: 'system' })}
+                      active={theme === 'light'}
+                      onClick={() => useSettingsStore.getState().setTheme('light')}
+                      icon={Sun}
+                      label="Light"
+                    />
+                    <SegmentedButton
+                      active={theme === 'system'}
+                      onClick={() => useSettingsStore.getState().setTheme('system')}
                       icon={Monitor}
                       label="System"
                     />
@@ -527,22 +541,22 @@ export function SettingsPage() {
                   <label className="text-xs font-medium text-text-secondary">Размер текста</label>
                   <div className="flex gap-2">
                     <SegmentedButton
-                      active={appearance.textSize === 'small'}
-                      onClick={() => updateAppearance({ textSize: 'small' })}
+                      active={textSize === 'small'}
+                      onClick={() => useSettingsStore.getState().setTextSize('small')}
                       icon={Type}
                       label="S"
                       compact
                     />
                     <SegmentedButton
-                      active={appearance.textSize === 'medium'}
-                      onClick={() => updateAppearance({ textSize: 'medium' })}
+                      active={textSize === 'medium'}
+                      onClick={() => useSettingsStore.getState().setTextSize('medium')}
                       icon={Type}
                       label="M"
                       compact
                     />
                     <SegmentedButton
-                      active={appearance.textSize === 'large'}
-                      onClick={() => updateAppearance({ textSize: 'large' })}
+                      active={textSize === 'large'}
+                      onClick={() => useSettingsStore.getState().setTextSize('large')}
                       icon={Type}
                       label="L"
                       compact
@@ -568,8 +582,8 @@ export function SettingsPage() {
                     icon={Eye}
                     action={
                       <Switch
-                        checked={appearance.showAvatars}
-                        onCheckedChange={(checked) => updateAppearance({ showAvatars: checked })}
+                        checked={showAvatars}
+                        onCheckedChange={(checked) => useSettingsStore.getState().setShowAvatars(checked)}
                       />
                     }
                   />
@@ -619,8 +633,8 @@ export function SettingsPage() {
                   icon={Keyboard}
                   action={
                     <Switch
-                      checked={chats.enterToSend}
-                      onCheckedChange={(checked) => updateChats({ enterToSend: checked })}
+                      checked={sendOnEnter}
+                      onCheckedChange={(checked) => useSettingsStore.getState().setSendOnEnter(checked)}
                     />
                   }
                 />

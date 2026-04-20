@@ -156,9 +156,12 @@ export function ChatsPage() {
   const transformedMessages = useMemo(() => {
     return (messages || []).map((msg: any) => {
       const createdAt = msg.created_at || '';
-      const date = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : '';
-      const time = createdAt
-        ? new Date(createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+      const parsedDate = createdAt ? new Date(createdAt) : null;
+      const date = parsedDate
+        ? `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`
+        : '';
+      const time = parsedDate
+        ? parsedDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
         : '';
       return {
         ...msg,

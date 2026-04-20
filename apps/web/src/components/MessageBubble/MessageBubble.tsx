@@ -1,5 +1,6 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { useMessageUIStore } from '@/stores/useMessageUIStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { getInitials } from '@/lib/getInitials';
 import styles from './MessageBubble.module.css';
 
@@ -80,6 +81,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const openReactions = useMessageUIStore((s) => s.openReactions);
   const closeReactions = useMessageUIStore((s) => s.closeReactions);
   const setReplyTo = useMessageUIStore((s) => s.setReplyTo);
+  const showAvatars = useSettingsStore((s) => s.showAvatars);
 
   const isReactionOpen = activeReactionMessageId === id;
   const swipeOffset = swipeOffsets[id] ?? 0;
@@ -130,8 +132,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ↩
       </div>
 
-      {/* Аватар (только для чужих и только если showAvatar) */}
-      {!isOwn && showAvatar && (
+      {/* Аватар (только для чужих и только если showAvatar И showAvatars из настроек) */}
+      {!isOwn && showAvatar && showAvatars && (
         <div className={styles.avatar}>
           {avatarUrl
             ? <img src={avatarUrl} alt={senderName} />

@@ -32,7 +32,7 @@ export interface NotificationSettings {
 }
 
 export interface AppearanceSettings {
-  theme: 'dark' | 'system';
+  theme: 'dark' | 'light' | 'system';
   density: 'compact' | 'default' | 'spacious';
   textSize: 'small' | 'medium' | 'large';
   animations: boolean;
